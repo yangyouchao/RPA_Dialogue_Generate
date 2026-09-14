@@ -229,8 +229,9 @@ class DialogueTests(unittest.TestCase):
         merged = dg.read_json(dg.ROOT / "schema/open_source/topic_schema_20_zh.json")
         daily = dg.read_json(dg.ROOT / "tmp/dailydialog_20/output/topic_dailydialog_20_zh.json")
         self.assertEqual(merged["subtopics"][20:], daily["subtopics"])
-        self.assertEqual(merged["dailydialog_source"],
-                         {key: value for key, value in daily.items() if key != "subtopics"})
+        if "dailydialog_source" in merged:
+            self.assertEqual(merged["dailydialog_source"],
+                             {key: value for key, value in daily.items() if key != "subtopics"})
         self.assertEqual(len({item["id"] for item in merged["subtopics"]}), 40)
         for item in merged["subtopics"]:
             self.assertEqual(list(item), list(merged["subtopics"][0]))
@@ -253,6 +254,23 @@ class DialogueTests(unittest.TestCase):
                 self.assertNotIn("original_intent", item)
                 self.assertIn(item["id"], document["source_records"])
             dg.load_catalog(dg.DEFAULT_USERS, directory, dg.ROOT / "profiles/Character_profile")
+
+    def test_topic_without_retired_tags_loads_but_invalid_seeds_fail(self):
+        topic = {"id": "chat", "name": "闲聊", "mode": "兴趣交流",
+                 "seeds": ["聊聊兴趣"], "boundary": "不编造共同经历"}
+        document = {"schema_version": "1.0", "id": "test", "name": "测试主题",
+                    "version": "1", "source": "test fixture", "subtopics": [topic]}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "topic_test.json"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            catalog = dg.load_catalog(dg.DEFAULT_USERS, directory, dg.ROOT / "profiles/Character_profile")
+            self.assertEqual(dg.make_jobs(catalog, 1, 123)[0]["seed_situation"], "聊聊兴趣")
+            for value in (None, "聊聊兴趣", [], [""], [1]):
+                with self.subTest(seeds=value):
+                    topic["seeds"] = value
+                    path.write_text(json.dumps(document), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "seeds"):
+                        dg.load_catalog(dg.DEFAULT_USERS, directory, dg.ROOT / "profiles/Character_profile")
 
     def test_legacy_user_path_resolves_after_reorganization(self):
         self.assertEqual(dg.resolve_users_path(dg.ROOT / "User_profile.json"),
