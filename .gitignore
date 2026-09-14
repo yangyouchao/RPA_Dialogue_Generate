@@ -1,0 +1,38 @@
+# Local API credentials (keep the public template)
+.env
+.env.*
+!.env.example
+
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Local dialogue outputs and data-processing intermediates
+/dialogues/
+/tmp/
+*.progress.log
+.generation.lock
+.checkpoints/
+training.jsonl
+*.tmp
+
+# Local editor / agent settings and operating-system files
+.vscode/
+.idea/
+.codex/
+.agents/
+.DS_Store
+Thumbs.db
+Desktop.ini

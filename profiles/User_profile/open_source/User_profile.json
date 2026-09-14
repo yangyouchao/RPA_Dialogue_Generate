@@ -1,0 +1,263 @@
+{
+  "schema_version": "1.0",
+  "version": "a520ad7f999ca7e6dfdc25fed9f5070bf6f87b42",
+  "format": "raw_persona",
+  "source": "google/Synthetic-Persona-Chat",
+  "source_url": "https://huggingface.co/datasets/google/Synthetic-Persona-Chat/resolve/a520ad7f999ca7e6dfdc25fed9f5070bf6f87b42/data/Synthetic-Persona-Chat_train.csv",
+  "license": "CC-BY-4.0",
+  "split": "train",
+  "column": "user 1 personas",
+  "selection": "First 50 data rows in the original CSV, zero-based rows 0..49; User 1 only; no shuffle, deduplication, translation, or inferred attributes.",
+  "profiles": [
+    {
+      "id": "SPC_001",
+      "source_row_index": 0,
+      "persona": "I am 32.\nI do not want a job.\nI play video games all day.\nI still live at home with my parents."
+    },
+    {
+      "id": "SPC_002",
+      "source_row_index": 1,
+      "persona": "I am 32.\nI play video games all day.\nI still live at home with my parents.\nI do not want a job."
+    },
+    {
+      "id": "SPC_003",
+      "source_row_index": 2,
+      "persona": "I am 32.\nI play video games all day.\nI still live at home with my parents.\nI do not want a job.\nI eat all take out."
+    },
+    {
+      "id": "SPC_004",
+      "source_row_index": 3,
+      "persona": "I write.\nI work at mcdonald s.\nI watch youtube videos.\nI have brown hair."
+    },
+    {
+      "id": "SPC_005",
+      "source_row_index": 4,
+      "persona": "I am bald.\nI like to swim.\nMy favorite drink is chocolate milk.\nI don t work."
+    },
+    {
+      "id": "SPC_006",
+      "source_row_index": 5,
+      "persona": "I am male.\nI like potatoes.\nI work in accounting.\nI lease my car."
+    },
+    {
+      "id": "SPC_007",
+      "source_row_index": 6,
+      "persona": "I am male.\nI like potatoes.\nI work in accounting.\nI lease my car."
+    },
+    {
+      "id": "SPC_008",
+      "source_row_index": 7,
+      "persona": "I am male.\nMy weakness are sweets.\nI am unsociable.\nI am a jack of all , master of none."
+    },
+    {
+      "id": "SPC_009",
+      "source_row_index": 8,
+      "persona": "I am male.\nMy weakness are sweets.\nI am unsociable.\nI live to not disappoint my loved ones.\nI am a jack of all , master of none."
+    },
+    {
+      "id": "SPC_010",
+      "source_row_index": 9,
+      "persona": "I am male.\nI live to not disappoint my loved ones.\nI am unsociable.\nI am a jack of all , master of none.\nMy weakness are sweets."
+    },
+    {
+      "id": "SPC_011",
+      "source_row_index": 10,
+      "persona": "I am male.\nI live to not disappoint my loved ones.\nMy weakness are sweets.\nI am a jack of all , master of none.\nI am unsociable."
+    },
+    {
+      "id": "SPC_012",
+      "source_row_index": 11,
+      "persona": "I am male.\nI live to not disappoint my loved ones.\nI am a jack of all , master of none.\nMy weakness are sweets."
+    },
+    {
+      "id": "SPC_013",
+      "source_row_index": 12,
+      "persona": "I am tall.\nI like to garden.\nI love the outdoors.\nI like to build things.\nI like to travel."
+    },
+    {
+      "id": "SPC_014",
+      "source_row_index": 13,
+      "persona": "I am tall.\nI like to build things.\nI love the outdoors.\nI like to garden.\nI like to travel."
+    },
+    {
+      "id": "SPC_015",
+      "source_row_index": 14,
+      "persona": "I am tall.\nI spend my free time volunteering at nursing homes.\nI like to water ski.\nMy favorite color is red."
+    },
+    {
+      "id": "SPC_016",
+      "source_row_index": 15,
+      "persona": "I am tall.\nI spend my free time volunteering at nursing homes.\nMy favorite color is red.\nMy dad was a cop.\nI like to water ski."
+    },
+    {
+      "id": "SPC_017",
+      "source_row_index": 16,
+      "persona": "I am thin.\nI like to hunt.\nI am blonde.\nI like the tv show the walking dead.\nI love the tigers baseball team."
+    },
+    {
+      "id": "SPC_018",
+      "source_row_index": 17,
+      "persona": "I am thin.\nI like to hunt.\nI love the tigers baseball team.\nI am blonde.\nI like the tv show the walking dead."
+    },
+    {
+      "id": "SPC_019",
+      "source_row_index": 18,
+      "persona": "I am thin.\nI like the tv show the walking dead.\nI like to hunt.\nI love the tigers baseball team."
+    },
+    {
+      "id": "SPC_020",
+      "source_row_index": 19,
+      "persona": "I m dumpy.\nI have long fingers.\nI can t eat shrimp.\nLike a skeleton.\nI have long legs."
+    },
+    {
+      "id": "SPC_021",
+      "source_row_index": 20,
+      "persona": "I m funny.\nI can draw.\nI have sausage fingers.\nI like sprite soda."
+    },
+    {
+      "id": "SPC_022",
+      "source_row_index": 21,
+      "persona": "I am a man.\nI am not healthy.\nI like the movie godfather.\nI weight 300 pounds.\nI like candy and soda."
+    },
+    {
+      "id": "SPC_023",
+      "source_row_index": 22,
+      "persona": "I am a man.\nI work on trucks.\nI have a doberman.\nI am twenty five years old.\nMy favorite food is pizza."
+    },
+    {
+      "id": "SPC_024",
+      "source_row_index": 23,
+      "persona": "I am a man.\nI have a doberman.\nI work on trucks.\nI am twenty five years old."
+    },
+    {
+      "id": "SPC_025",
+      "source_row_index": 24,
+      "persona": "I am a man.\nMy favorite food is pizza.\nI work on trucks.\nI have a doberman."
+    },
+    {
+      "id": "SPC_026",
+      "source_row_index": 25,
+      "persona": "I am blind.\nI use a cane to help me get around.\nI have many friends.\nI have a job as a dj at a radio station."
+    },
+    {
+      "id": "SPC_027",
+      "source_row_index": 26,
+      "persona": "I am blind.\nI once drove a car ! my friend told me what to do while i drove.\nI have many friends.\nI have a job as a dj at a radio station.\nI use a cane to help me get around."
+    },
+    {
+      "id": "SPC_028",
+      "source_row_index": 27,
+      "persona": "I am blind.\nI once drove a car ! my friend told me what to do while i drove.\nI use a cane to help me get around.\nI have a job as a dj at a radio station."
+    },
+    {
+      "id": "SPC_029",
+      "source_row_index": 28,
+      "persona": "I am blind.\nI once drove a car ! my friend told me what to do while i drove.\nI have a job as a dj at a radio station.\nI have many friends."
+    },
+    {
+      "id": "SPC_030",
+      "source_row_index": 29,
+      "persona": "I am dumpy.\nLike a skeleton.\nI have long legs.\nI have long fingers.\nI cannot eat shrimp."
+    },
+    {
+      "id": "SPC_031",
+      "source_row_index": 30,
+      "persona": "I am funny.\nI have sausage fingers.\nI can draw.\nI am bloated."
+    },
+    {
+      "id": "SPC_032",
+      "source_row_index": 31,
+      "persona": "I am funny.\nI have sausage fingers.\nI like sprite soda.\nI am bloated.\nI can draw."
+    },
+    {
+      "id": "SPC_033",
+      "source_row_index": 32,
+      "persona": "I am nurse.\nI play the violin.\nI like to visit national parks.\nI met my husband when i was a freshman in college."
+    },
+    {
+      "id": "SPC_034",
+      "source_row_index": 33,
+      "persona": "I am short.\nI am smart too.\nI like reading.\nI have big face cheeks.\nI am also round."
+    },
+    {
+      "id": "SPC_035",
+      "source_row_index": 34,
+      "persona": "I am short.\nI am smart too.\nI have big face cheeks.\nI like reading."
+    },
+    {
+      "id": "SPC_036",
+      "source_row_index": 35,
+      "persona": "I am short.\nMy hair is brown.\nI am not thin.\nI like to sew."
+    },
+    {
+      "id": "SPC_037",
+      "source_row_index": 36,
+      "persona": "I am short.\nI have big face cheeks.\nI am also round.\nI like reading."
+    },
+    {
+      "id": "SPC_038",
+      "source_row_index": 37,
+      "persona": "I am vegan.\nMy father is a mechanic.\nI work at walmart as a stocker.\nMy favorite band is muse."
+    },
+    {
+      "id": "SPC_039",
+      "source_row_index": 38,
+      "persona": "I am vegan.\nMy father is a mechanic.\nI am leaving for college in three months.\nI work at walmart as a stocker."
+    },
+    {
+      "id": "SPC_040",
+      "source_row_index": 39,
+      "persona": "I am vegan.\nI work at a retail store.\nI live close to the coast.\nI enjoy walking on the beach.\nI have red hair."
+    },
+    {
+      "id": "SPC_041",
+      "source_row_index": 40,
+      "persona": "I am vegan.\nMy favorite band is muse.\nI work at walmart as a stocker.\nMy father is a mechanic."
+    },
+    {
+      "id": "SPC_042",
+      "source_row_index": 41,
+      "persona": "I am vegan.\nI live close to the coast.\nI have red hair.\nI enjoy walking on the beach.\nI work at a retail store."
+    },
+    {
+      "id": "SPC_043",
+      "source_row_index": 42,
+      "persona": "I am vegan.\nI love to go to the beach.\nI have 2 cats.\nMy favorite food is strawberries.\nI work in a veterinary office."
+    },
+    {
+      "id": "SPC_044",
+      "source_row_index": 43,
+      "persona": "I am vegan.\nI love to go to the beach.\nMy favorite food is strawberries.\nI work in a veterinary office."
+    },
+    {
+      "id": "SPC_045",
+      "source_row_index": 44,
+      "persona": "I am vegan.\nI work at the grocery store.\nI help around with bookkeeping and tours.\nSometimes i volunteer at an urban farm.\nI decided to become vegan a year ago."
+    },
+    {
+      "id": "SPC_046",
+      "source_row_index": 45,
+      "persona": "I am vegan.\nI enjoy walking on the beach.\nI have red hair.\nI live close to the coast.\nI work at a retail store."
+    },
+    {
+      "id": "SPC_047",
+      "source_row_index": 46,
+      "persona": "I am vegan.\nI work in a veterinary office.\nMy favorite food is strawberries.\nI love to go to the beach."
+    },
+    {
+      "id": "SPC_048",
+      "source_row_index": 47,
+      "persona": "I am vegan.\nI work in a veterinary office.\nMy favorite food is strawberries.\nI love to go to the beach.\nI have 2 cats."
+    },
+    {
+      "id": "SPC_049",
+      "source_row_index": 48,
+      "persona": "I am vegan.\nI decided to become vegan a year ago.\nI work at the grocery store.\nSometimes i volunteer at an urban farm.\nI help around with bookkeeping and tours."
+    },
+    {
+      "id": "SPC_050",
+      "source_row_index": 49,
+      "persona": "I am vegan.\nI am leaving for college in three months.\nMy father is a mechanic.\nMy favorite band is muse."
+    }
+  ]
+}

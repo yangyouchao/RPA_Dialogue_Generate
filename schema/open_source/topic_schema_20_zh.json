@@ -1,0 +1,533 @@
+{
+  "schema_version": "1.0",
+  "id": "sgd_selected",
+  "name": "开源服务与日常闲聊主题",
+  "version": "2026-09-14.v2",
+  "source": "本地 schema.json 的20个服务意图，加上 DailyDialog train 提炼的20个闲聊主题。",
+  "source_sha256": "97b6c21673aa7e5c2d1ceef52aa35170c565223cdcbf33bb24c69739bda04a82",
+  "selection": "前20条为人工选择的服务意图；后20条为既有 DailyDialog 开场样本提炼，均非本次全量随机抽样。",
+  "translation_note": "SGD描述字段为原意图及中文翻译；DailyDialog描述字段为开场原文及中文译文，name、mode、seeds为提炼。boundary均为项目约束。",
+  "subtopics": [
+    {
+      "id": "SGD_001",
+      "name": "查询账户余额",
+      "mode": "任务型对话意图",
+      "description_en": "Check the amount of money in a user's bank account",
+      "description_zh": "查询用户银行账户中的金额。",
+      "service_name": "Banks_1",
+      "intent_name": "CheckBalance",
+      "seeds": [
+        "查询用户银行账户中的金额。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_002",
+      "name": "银行转账",
+      "mode": "任务型对话意图",
+      "description_en": "Transfer money from one bank account to another user's account",
+      "description_zh": "将资金从一个银行账户转入另一位用户的账户。",
+      "service_name": "Banks_1",
+      "intent_name": "TransferMoney",
+      "seeds": [
+        "将资金从一个银行账户转入另一位用户的账户。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_003",
+      "name": "查询城际巴士",
+      "mode": "任务型对话意图",
+      "description_en": "Find a bus journey for a given pair of cities",
+      "description_zh": "查询指定两个城市之间的巴士行程。",
+      "service_name": "Buses_1",
+      "intent_name": "FindBus",
+      "seeds": [
+        "查询指定两个城市之间的巴士行程。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_004",
+      "name": "查看日程",
+      "mode": "任务型对话意图",
+      "description_en": "Get list of all calendar events for the user on a given day",
+      "description_zh": "获取用户指定日期的全部日历事项。",
+      "service_name": "Calendar_1",
+      "intent_name": "GetEvents",
+      "seeds": [
+        "获取用户指定日期的全部日历事项。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_005",
+      "name": "添加日程",
+      "mode": "任务型对话意图",
+      "description_en": "Add event to the user's calendar",
+      "description_zh": "向用户的日历中添加事项。",
+      "service_name": "Calendar_1",
+      "intent_name": "AddEvent",
+      "seeds": [
+        "向用户的日历中添加事项。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_006",
+      "name": "查找城市活动",
+      "mode": "任务型对话意图",
+      "description_en": "Find events in a given city",
+      "description_zh": "查找指定城市中的活动。",
+      "service_name": "Events_1",
+      "intent_name": "FindEvents",
+      "seeds": [
+        "查找指定城市中的活动。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_007",
+      "name": "查询单程航班",
+      "mode": "任务型对话意图",
+      "description_en": "Search for one-way flights to a destination",
+      "description_zh": "查询前往目的地的单程航班。",
+      "service_name": "Flights_1",
+      "intent_name": "SearchOnewayFlight",
+      "seeds": [
+        "查询前往目的地的单程航班。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_008",
+      "name": "查询往返航班",
+      "mode": "任务型对话意图",
+      "description_en": "Search for round-trip flights to a destination",
+      "description_zh": "查询前往目的地的往返航班。",
+      "service_name": "Flights_1",
+      "intent_name": "SearchRoundtripFlights",
+      "seeds": [
+        "查询前往目的地的往返航班。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_009",
+      "name": "寻找公寓",
+      "mode": "任务型对话意图",
+      "description_en": "Find an apartment in a city for a given number of bedrooms",
+      "description_zh": "根据城市和卧室数量寻找公寓。",
+      "service_name": "Homes_1",
+      "intent_name": "FindApartment",
+      "seeds": [
+        "根据城市和卧室数量寻找公寓。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_010",
+      "name": "预约看房",
+      "mode": "任务型对话意图",
+      "description_en": "Schedule a visit for a given property on a particular date",
+      "description_zh": "预约在指定日期查看某处房产。",
+      "service_name": "Homes_1",
+      "intent_name": "ScheduleVisit",
+      "seeds": [
+        "预约在指定日期查看某处房产。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_011",
+      "name": "查找酒店",
+      "mode": "任务型对话意图",
+      "description_en": "Find a hotel at a given location",
+      "description_zh": "查找指定地点的酒店。",
+      "service_name": "Hotels_1",
+      "intent_name": "SearchHotel",
+      "seeds": [
+        "查找指定地点的酒店。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_012",
+      "name": "查找短租房屋",
+      "mode": "任务型对话意图",
+      "description_en": "Find a house at a given location",
+      "description_zh": "查找指定地点的房屋。",
+      "service_name": "Hotels_2",
+      "intent_name": "SearchHouse",
+      "seeds": [
+        "查找指定地点的房屋。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_013",
+      "name": "查找点播电影",
+      "mode": "任务型对话意图",
+      "description_en": "Find movies by genre and optionally director",
+      "description_zh": "按类型查找电影，也可指定导演。",
+      "service_name": "Media_1",
+      "intent_name": "FindMovies",
+      "seeds": [
+        "按类型查找电影，也可指定导演。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_014",
+      "name": "购买电影票",
+      "mode": "任务型对话意图",
+      "description_en": "Buy movie tickets for a particular show",
+      "description_zh": "购买指定场次的电影票。",
+      "service_name": "Movies_1",
+      "intent_name": "BuyMovieTickets",
+      "seeds": [
+        "购买指定场次的电影票。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_015",
+      "name": "搜索歌曲",
+      "mode": "任务型对话意图",
+      "description_en": "Search for a song",
+      "description_zh": "搜索一首歌曲。",
+      "service_name": "Music_1",
+      "intent_name": "LookupSong",
+      "seeds": [
+        "搜索一首歌曲。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_016",
+      "name": "查询可租车辆",
+      "mode": "任务型对话意图",
+      "description_en": "Search for available rental cars by city and date",
+      "description_zh": "根据城市和日期查询可租用的车辆。",
+      "service_name": "RentalCars_1",
+      "intent_name": "GetCarsAvailable",
+      "seeds": [
+        "根据城市和日期查询可租用的车辆。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_017",
+      "name": "查找餐馆",
+      "mode": "任务型对话意图",
+      "description_en": "Find a restaurant of a particular cuisine in a city",
+      "description_zh": "查找指定城市中供应某类菜系的餐馆。",
+      "service_name": "Restaurants_1",
+      "intent_name": "FindRestaurants",
+      "seeds": [
+        "查找指定城市中供应某类菜系的餐馆。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_018",
+      "name": "寻找发型师",
+      "mode": "任务型对话意图",
+      "description_en": "Search for a hair stylist by city and optionally other attributes",
+      "description_zh": "按城市搜索发型师，也可指定其他条件。",
+      "service_name": "Services_1",
+      "intent_name": "FindProvider",
+      "seeds": [
+        "按城市搜索发型师，也可指定其他条件。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_019",
+      "name": "浏览旅游景点",
+      "mode": "任务型对话意图",
+      "description_en": "Browse attractions in a given city",
+      "description_zh": "浏览指定城市中的旅游景点。",
+      "service_name": "Travel_1",
+      "intent_name": "FindAttractions",
+      "seeds": [
+        "浏览指定城市中的旅游景点。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "SGD_020",
+      "name": "查询天气",
+      "mode": "任务型对话意图",
+      "description_en": "Get the weather of a certain location on a date",
+      "description_zh": "查询指定地点在某个日期的天气。",
+      "service_name": "Weather_1",
+      "intent_name": "GetWeather",
+      "seeds": [
+        "查询指定地点在某个日期的天气。"
+      ],
+      "boundary": "原数据为任务型服务意图。当前无工具的角色聊天只讨论需求、偏好或给定候选；不得声称完成查询、预约、交易或提供实时结果。"
+    },
+    {
+      "id": "DD_CHAT_001",
+      "name": "自然保护区见闻",
+      "mode": "分享好奇",
+      "description_en": "Daniel , have you ever heard about the wildlife sanctuary ?",
+      "description_zh": "你听说过那个野生动物保护区吗？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "聊聊听说过的野生动物保护区，以及让自己感到好奇的地方。"
+      ],
+      "boundary": "不默认双方去过同一个保护区，不编造具体地点的事实。"
+    },
+    {
+      "id": "DD_CHAT_002",
+      "name": "大学与求学经历",
+      "mode": "经历交流",
+      "description_en": "Which university did you graduate from ?",
+      "description_zh": "你是从哪所大学毕业的？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从在哪里读过大学聊起，交流各自愿意分享的求学经历。"
+      ],
+      "boundary": "不预设用户或角色上过大学，允许说明不同的学习经历。"
+    },
+    {
+      "id": "DD_CHAT_003",
+      "name": "新工作与薪资吸引力",
+      "mode": "看法交流",
+      "description_en": "I heard that Janet has got a new job . She ’ s working for the united investment group . I heard that they pay very well .",
+      "description_zh": "听说她找到了一份新工作，在联合投资集团上班。听说那里的薪水很高。",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "听说有人找到一份薪资不错的新工作，聊聊好工作最吸引自己的地方。"
+      ],
+      "boundary": "不将原文人物或公司设为双方熟人，不把传闻作为已核实事实。"
+    },
+    {
+      "id": "DD_CHAT_004",
+      "name": "保龄球与晚间娱乐",
+      "mode": "兴趣交流",
+      "description_en": "Hi ! Tom . Want to go to play bowling tonight ?",
+      "description_zh": "嗨！今晚想去打保龄球吗？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从晚上打保龄球的提议聊起，交流对这项活动的兴趣。"
+      ],
+      "boundary": "只讨论活动意愿，不默认双方能够线下见面或完成预约。"
+    },
+    {
+      "id": "DD_CHAT_005",
+      "name": "吸烟与相处礼貌",
+      "mode": "边界讨论",
+      "description_en": "Would you mind if I smoked ?",
+      "description_zh": "你介意我抽烟吗？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从吸烟前是否应询问身边人的意见聊起，交流各自介意的事情。"
+      ],
+      "boundary": "不预设双方吸烟，不强迫接受烟味或劝人开始吸烟。"
+    },
+    {
+      "id": "DD_CHAT_006",
+      "name": "近况与恢复状态",
+      "mode": "关心近况",
+      "description_en": "Steven , have you got better now ?",
+      "description_zh": "你现在好些了吗？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从最近有没有好一些聊起，分享自己愿意谈的近况。"
+      ],
+      "boundary": "不预设疾病、诊断或双方有过先前交流，先说明关心的由来。"
+    },
+    {
+      "id": "DD_CHAT_007",
+      "name": "邮轮度假的期待",
+      "mode": "感受分享",
+      "description_en": "I'm so glad we decided to go on a cruise for our vacation .",
+      "description_zh": "真高兴我们决定坐邮轮去度假。",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从选择邮轮度假时的高兴心情聊起，交流对这种旅行方式的期待。"
+      ],
+      "boundary": "不沿用原文中的共同旅行关系，不编造双方共同经历。"
+    },
+    {
+      "id": "DD_CHAT_008",
+      "name": "午餐口味变化",
+      "mode": "生活闲聊",
+      "description_en": "I can't believe my eyes , Bill . Are you having a salad for lunch ? No hamburger ?",
+      "description_zh": "我真不敢相信自己的眼睛。你午饭吃沙拉？不吃汉堡？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从午餐由汉堡换成沙拉聊起，交流吃饭口味和选择的变化。"
+      ],
+      "boundary": "原文未说明更换午餐的原因，不预设减肥、疾病或身材焦虑。"
+    },
+    {
+      "id": "DD_CHAT_009",
+      "name": "毕业后的打算",
+      "mode": "未来畅想",
+      "description_en": "So , Fred , what are your plans for after graduation ?",
+      "description_zh": "那么，你毕业后有什么打算？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "聊聊毕业之后想做什么，以及对下一阶段生活的期待。"
+      ],
+      "boundary": "不预设双方即将毕业，可谈过去的想法或假设性的选择。"
+    },
+    {
+      "id": "DD_CHAT_010",
+      "name": "生日聚会与邀请",
+      "mode": "社交偏好",
+      "description_en": "Melissa ? I ’ d like to invite you to my wife ’ s birthday party .",
+      "description_zh": "我想邀请你参加我妻子的生日聚会。",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从邀请别人参加生日聚会聊起，交流自己喜欢的庆祝方式。"
+      ],
+      "boundary": "不沿用原文的婚姻关系，不默认用户已婚或双方认识寿星。"
+    },
+    {
+      "id": "DD_CHAT_011",
+      "name": "驾驶考试后的感受",
+      "mode": "经历分享",
+      "description_en": "About my driving test , did I do well ?",
+      "description_zh": "我的驾驶考试表现怎么样？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从想知道驾驶考试表现如何聊起，交流考后的感受和对反馈的期待。"
+      ],
+      "boundary": "不预设对方是考官或目睹了考试，不编造成绩和驾驶经历。"
+    },
+    {
+      "id": "DD_CHAT_012",
+      "name": "空闲时间的爱好",
+      "mode": "兴趣交流",
+      "description_en": "What do you like to do with your free time ?",
+      "description_zh": "你空闲时喜欢做什么？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "聊聊空闲时间喜欢做什么，以及这些活动带来的乐趣。"
+      ],
+      "boundary": "不替双方补造爱好，允许暂时没有固定兴趣。"
+    },
+    {
+      "id": "DD_CHAT_013",
+      "name": "生活调整与小改变",
+      "mode": "困扰讨论",
+      "description_en": "I don't know how to adjust my life . Would you give me a piece of advice ?",
+      "description_zh": "我不知道该怎么调整自己的生活。你能给我一点建议吗？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "觉得不知该怎样调整生活，想聊聊自己的困惑和可能的小改变。"
+      ],
+      "boundary": "原文没有给出困惑原因，不擅自添加失业、失恋等背景。"
+    },
+    {
+      "id": "DD_CHAT_014",
+      "name": "周六的安排",
+      "mode": "日常计划",
+      "description_en": "What are you doing this Saturday ?",
+      "description_zh": "你这周六有什么安排？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从这周六有什么安排聊起，交流各自想怎样度过这一天。"
+      ],
+      "boundary": "不默认已经约好见面，也不声称替对方安排了活动。"
+    },
+    {
+      "id": "DD_CHAT_015",
+      "name": "报纸里的有趣故事",
+      "mode": "见闻交流",
+      "description_en": "Are there any interesting stories in the newspaper today ?",
+      "description_zh": "今天报纸上有什么有趣的新闻吗？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从报纸上有没有有趣的故事聊起，交流什么内容会吸引自己阅读。"
+      ],
+      "boundary": "不编造当天新闻；具体报道需由对话提供，否则讨论阅读兴趣。"
+    },
+    {
+      "id": "DD_CHAT_016",
+      "name": "初次认识与自我介绍",
+      "mode": "相互了解",
+      "description_en": "Hello ! Let me introduce myself . My name is Nancy .",
+      "description_zh": "你好！让我自我介绍一下。",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "初次交流时做一个简短的自我介绍，聊聊自己愿意让对方了解的事情。"
+      ],
+      "boundary": "介绍依据各自画像，不沿用原文姓名或要求透露隐私。"
+    },
+    {
+      "id": "DD_CHAT_017",
+      "name": "聚会中的熟人与生人",
+      "mode": "社交感受",
+      "description_en": "Looks like a good party , I probably know about half the people .",
+      "description_zh": "这聚会看起来不错，这里的人我大概认识一半。",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从一场只认识部分来宾的聚会聊起，交流这种场合给自己的感觉。"
+      ],
+      "boundary": "不默认双方在同一聚会现场，不捏造共同熟人。"
+    },
+    {
+      "id": "DD_CHAT_018",
+      "name": "疲惫与休息",
+      "mode": "状态分享",
+      "description_en": "You look run down , Brian .",
+      "description_zh": "你看起来很疲惫。",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从看起来有些疲惫聊起，交流最近的状态和休息感受。"
+      ],
+      "boundary": "文本交流不假装看见对方外貌，不擅自解释疲惫原因。"
+    },
+    {
+      "id": "DD_CHAT_019",
+      "name": "房间的第一印象",
+      "mode": "感受交流",
+      "description_en": "This is your room . What do you think of it ?",
+      "description_zh": "这是你的房间，你觉得怎么样？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "从对一个房间的第一印象聊起，交流喜欢怎样的居住空间。"
+      ],
+      "boundary": "原文未描述房间陈设，不预设酒店、同住关系或已看过实物。"
+    },
+    {
+      "id": "DD_CHAT_020",
+      "name": "对工作的感受",
+      "mode": "感受交流",
+      "description_en": "How do you like your work ?",
+      "description_zh": "你觉得自己的工作怎么样？",
+      "service_name": "",
+      "intent_name": "",
+      "seeds": [
+        "聊聊怎么看待自己的工作，有哪些喜欢或不太喜欢的地方。"
+      ],
+      "boundary": "不预设双方都有工作，不编造具体职业，可根据画像说明处境。"
+    }
+  ]
+  
+}
