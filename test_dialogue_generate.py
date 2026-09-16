@@ -53,6 +53,42 @@ class FakeClient:
 
 
 class DialogueTests(unittest.TestCase):
+    def test_user_id_selection_and_invalid_id(self):
+        catalog = dg.load_catalog(dg.DEFAULT_USERS, dg.DEFAULT_SCHEMES,
+                                  dg.ROOT / "profiles/Character_profile", "lu_xun_profile", user_id="SPC_001")
+        jobs = dg.make_jobs(catalog, 20, 123)
+        self.assertEqual({job["user"]["id"] for job in jobs}, {"SPC_001"})
+        self.assertEqual({job["character"]["id"] for job in jobs}, {"lu_xun_profile"})
+        self.assertEqual(len({job["topic"]["id"] for job in jobs}), 20)
+        with self.assertRaisesRegex(ValueError, "Unknown user ID.*Available:"):
+            dg.load_catalog(dg.DEFAULT_USERS, dg.DEFAULT_SCHEMES,
+                            dg.ROOT / "profiles/Character_profile", user_id="missing")
+
+    def test_user_id_plan_append_and_resume_preserve_existing_files(self):
+        with tempfile.TemporaryDirectory() as directory, patch("sys.stdout", io.StringIO()):
+            output = Path(directory)
+            argv = ["dialogue_generate.py", "plan", "--count", "1", "--output", directory]
+            with patch("sys.argv", [*argv, "--user-id", "SPC_001"]):
+                dg.main()
+            before = {p.name: p.read_bytes() for p in output.iterdir()}
+            with patch("sys.argv", [*argv, "--resume", "--user-id", "SPC_001"]):
+                dg.main()
+            with patch("sys.argv", [*argv, "--resume", "--user-id", "SPC_002"]):
+                with self.assertRaisesRegex(ValueError, "--user-id differs"):
+                    dg.main()
+            self.assertEqual(before, {p.name: p.read_bytes() for p in output.iterdir()})
+            with patch("sys.argv", [*argv, "--append", "--user-id", "SPC_002"]):
+                dg.main()
+            self.assertEqual(dg.read_job(output, "dialogue_00002")["user"]["id"], "SPC_002")
+            self.assertEqual(before, {name: (output / name).read_bytes() for name in before})
+
+    def test_user_id_rejected_for_render_and_export(self):
+        for command in ("render", "export"):
+            with patch("sys.argv", ["dialogue_generate.py", command, "--user-id", "SPC_001"]), \
+                 patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit) as error:
+                dg.main()
+            self.assertEqual(error.exception.code, 2)
+
     def test_character_goodbye_and_repeated_text_cannot_end_dialogue(self):
         class RepeatingClient(FakeClient):
             def call(self, role, messages, validator=None):
@@ -143,7 +179,9 @@ class DialogueTests(unittest.TestCase):
             (output / "dialogue_00012.progress.log").write_text("{}", encoding="utf-8")
             before = {p.name: p.read_bytes() for p in output.iterdir()}
             with patch("sys.argv", ["dialogue_generate.py", "generate", "--append", "--count", "2",
-                                     "--character", "meng_ziyi_profile", "--output", directory]), \
+                                     "--character", "meng_ziyi_profile", "--user-behavior", "sharp_minimal",
+                                     "--conversation-mode", "open_chat",
+                                     "--output", directory]), \
                  patch.object(dg.ChatClient, "endpoint", return_value=("secret", "https://example.invalid", "mock")), \
                  patch.object(dg.ChatClient, "call", side_effect=FakeClient(goal_round=1).call):
                 dg.main()
@@ -153,6 +191,9 @@ class DialogueTests(unittest.TestCase):
                 self.assertEqual(job["phase"], "done")
                 self.assertTrue(job["messages"])
                 self.assertEqual(job["character"]["id"], "meng_ziyi_profile")
+                self.assertEqual(job["user_behavior"]["id"], "sharp_minimal")
+                self.assertEqual(job["conversation_start"]["mode"], "open_chat")
+                self.assertIsNone(job["topic"])
             self.assertEqual(len(list(output.iterdir())), len(before) + 4)
 
     def test_append_plan_empty_directory_and_legacy_numbering(self):
@@ -408,7 +449,8 @@ class DialogueTests(unittest.TestCase):
 
     def test_random_pairing_ignores_profile_matching_tags(self):
         users = {"version": "1", "profiles": [{"id": "u", "tags": ["adult"]}]}
-        topic = {"id": "t", "required_user_tags": ["student"], "excluded_character_tags": [], "seeds": ["a"]}
+        topic = {"id": "t", "name": "测试主题", "required_user_tags": ["student"],
+                 "excluded_character_tags": [], "seeds": ["a"]}
         jobs = dg.make_jobs((users, [topic], [{"id": "c", "tags": []}]), 1, 1)
         self.assertEqual(jobs[0]["user"]["id"], "u")
         self.assertEqual(jobs[0]["topic"]["id"], "t")
@@ -481,7 +523,10 @@ class DialogueTests(unittest.TestCase):
             self.assertFalse((output / ".generation.lock").exists())
             self.assertEqual(dg.read_job(output, "dialogue_00001")["rounds"], 1)
             transcript = dg.read_json(output / "dialogue_00001.json")
-            self.assertEqual(set(transcript), {"messages", "scene", "user_goal", "completed_at"})
+            self.assertEqual(set(transcript), {"messages", "scene", "user_goal", "completed_at",
+                                               "user_behavior", "conversation_start"})
+            self.assertEqual(transcript["user_behavior"]["id"], "neutral_minimal")
+            self.assertEqual(transcript["conversation_start"]["mode"], "task")
             self.assertEqual([m["role"] for m in transcript["messages"]], ["system", "user", "assistant"])
             self.assertTrue(transcript["completed_at"])
 
@@ -557,10 +602,360 @@ class DialogueTests(unittest.TestCase):
 
     def test_character_topic_exclusion_tags_do_not_block_sampling(self):
         users = {"version": "1", "profiles": [{"id": "u", "tags": []}]}
-        topic = {"id": "t", "required_user_tags": [], "excluded_character_tags": ["historic"],
+        topic = {"id": "t", "name": "测试主题", "required_user_tags": [], "excluded_character_tags": ["historic"],
                  "soft_tags": [], "seeds": ["现代日历应用"]}
         jobs = dg.make_jobs((users, [topic], [{"id": "c", "tags": ["historic"]}]), 1, 1)
         self.assertEqual(len(jobs), 1)
+
+
+class ConversationStartTests(unittest.TestCase):
+    def catalog(self, mode="task", schemes=dg.DEFAULT_SCHEMES):
+        return dg.load_catalog(dg.DEFAULT_USERS, schemes, dg.ROOT / "profiles/Character_profile",
+                               conversation_mode=mode)
+
+    def test_topic_chat_keeps_pairings_but_hides_task_details(self):
+        catalog = self.catalog()
+        for topic in catalog[1]:
+            topic["seeds"] = ["TASK_TRIGGER_SECRET"]
+            topic["boundary"] = "TASK_BOUNDARY_SECRET"
+        tasks = dg.make_jobs(catalog, 12, 123, "task")
+        chats = dg.make_jobs(catalog, 12, 123, "topic_chat")
+        for task, chat in zip(tasks, chats):
+            self.assertEqual((task["character"], task["topic"], task["user"]),
+                             (chat["character"], chat["topic"], chat["user"]))
+            task_scene = dg.build_scene(task)
+            self.assertEqual(task_scene["user_goal"], "TASK_TRIGGER_SECRET")
+            self.assertEqual(task_scene["public"]["boundary"], "TASK_BOUNDARY_SECRET")
+            chat["scene"] = dg.build_scene(chat)
+            self.assertEqual(chat["scene"]["public"]["background"], chat["topic"]["name"])
+            self.assertIsNone(chat["seed_situation"])
+            self.assertIsNone(chat["scene"]["user_goal"])
+            for actor in ("user", "character"):
+                request = dg.actor_system(chat, actor)
+                self.assertNotIn("TASK_TRIGGER_SECRET", request)
+                self.assertNotIn("TASK_BOUNDARY_SECRET", request)
+
+    def test_open_chat_does_not_load_topics_and_samples_unique_pairs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            invalid = Path(directory) / "topic_invalid.json"
+            invalid.write_text("not json", encoding="utf-8")
+            for schemes in (Path(directory), Path(directory) / "missing"):
+                catalog = self.catalog("open_chat", schemes)
+                self.assertEqual(catalog[1], [])
+                size = len(catalog[0]["profiles"]) * len(catalog[2])
+                jobs = dg.make_jobs(catalog, size, 123, "open_chat")
+                self.assertEqual(len({(j["user"]["id"], j["character"]["id"]) for j in jobs}), size)
+                for job in jobs:
+                    self.assertIsNone(job["topic"])
+                    self.assertEqual(job["conversation_start"], {"mode": "open_chat", "topic": None, "goal": None})
+                    scene = dg.build_scene(job)
+                    self.assertIsNone(scene["public"]["background"])
+                    self.assertIsNone(scene["public"]["trigger"])
+                    self.assertIsNone(scene["user_goal"])
+                with self.assertRaisesRegex(ValueError, "Not enough unique combinations"):
+                    dg.make_jobs(catalog, size + 1, 123, "open_chat")
+
+    def test_scene_validation_respects_goal_free_modes(self):
+        for mode in dg.CONVERSATION_MODES:
+            job = dg.make_jobs(self.catalog(mode), 1, 123, mode)[0]
+            scene = dg.build_scene(job)
+            for container, key in ((scene["public"], "trigger"), (scene, "user_goal")):
+                original = container[key]
+                container[key] = None if mode == "task" else "an invented task"
+                with self.assertRaises(ValueError):
+                    dg.validate_scene(scene)
+                container[key] = original
+            scene["public"]["background"] = "an invented scene" if mode == "open_chat" else None
+            with self.assertRaises(ValueError):
+                dg.validate_scene(scene)
+
+    def test_chat_modes_plan_resume_render_and_export_saved_settings(self):
+        for mode in ("topic_chat", "open_chat"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory, \
+                 patch("sys.stdout", io.StringIO()):
+                output = Path(directory)
+                with patch("sys.argv", ["dialogue_generate.py", "plan", "--count", "1", "--output", directory,
+                                         "--conversation-mode", mode, "--user-behavior", "sharp_minimal"]):
+                    dg.main()
+                planned = dg.read_json(output / "dialogue_00001.json")
+                self.assertEqual(planned["conversation_start"]["mode"], mode)
+                self.assertIsNone(planned["user_goal"])
+                requests = []
+                client = FakeClient(goal_round=2)
+
+                def call(role, messages, validator=None):
+                    requests.append((role, messages))
+                    return client.call(role, messages, validator)
+
+                with patch.object(dg, "load_catalog", side_effect=AssertionError("Must use saved startup")), \
+                     patch.object(dg, "load_user_behaviors", side_effect=AssertionError("Must use saved behavior")), \
+                     patch.object(dg.ChatClient, "endpoint", return_value=({}, "https://example.invalid", "mock")), \
+                     patch.object(dg.ChatClient, "call", side_effect=call):
+                    for command in ("generate", "render", "export"):
+                        argv = ["dialogue_generate.py", command, "--output", directory]
+                        if command == "generate":
+                            argv += ["--resume"]
+                        with patch("sys.argv", argv):
+                            dg.main()
+                job = dg.read_job(output, "dialogue_00001")
+                self.assertEqual(job["conversation_start"], planned["conversation_start"])
+                self.assertEqual(job["user_behavior"], planned["user_behavior"])
+                self.assertEqual(job["rounds"], 2)
+                self.assertEqual([role for role, _ in requests], ["user", "character"] * 2)
+                for role, messages in requests:
+                    prompt = dg.USER_PROMPT if role == "user" else dg.CHARACTER_PROMPT
+                    self.assertTrue(messages[0]["content"].startswith(prompt + "\n"))
+                    data = json.loads(messages[0]["content"][len(prompt) + 1:])
+                    self.assertEqual(data["scene"]["conversation_mode"], mode)
+                    self.assertIsNone(data["scene"]["trigger"])
+                    if role == "user":
+                        self.assertIsNone(data["user_goal"])
+                        self.assertEqual(data["user_behavior"]["id"], "sharp_minimal")
+                    else:
+                        self.assertNotIn("conversation_start", data)
+                        self.assertNotIn("user_behavior", data)
+                training = (output / "training.jsonl").read_text(encoding="utf-8")
+                self.assertNotIn("sharp_minimal", training)
+                self.assertEqual(len(json.loads(training)["messages"]), 5)
+
+    def test_minimal_reply_does_not_stop_without_user_end_flag(self):
+        class MinimalClient(FakeClient):
+            def call(self, role, messages, validator=None):
+                result = super().call(role, messages, validator)
+                if role == "user" and not result["goal_completed"]:
+                    result["message"] = "嗯"
+                return result
+
+        for end_round in (2, None):
+            job = dg.make_jobs(self.catalog("open_chat"), 1, 123, "open_chat")[0]
+            dg.assign_user_behaviors([job], dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "sharp_minimal"), 123)
+            client = MinimalClient(goal_round=end_round)
+            dg.run_job(job, client, lambda: None)
+            self.assertEqual(job["rounds"], end_round or dg.MAX_ROUNDS)
+            self.assertEqual(client.user_calls, client.character_calls)
+            self.assertEqual(job["messages"][0]["content"], "嗯")
+            self.assertEqual(job["status"], "completed")
+
+    def test_new_profile_context_omits_legacy_style_without_mutating_source(self):
+        job = fixture()
+        job["user"]["communication_style"] = "LEGACY_STYLE_SECRET"
+        original = copy.deepcopy(job["user"])
+        job["scene"] = dg.build_scene(job)
+        self.assertIn("LEGACY_STYLE_SECRET", dg.actor_system(job, "user"))
+        job["prompt_version"] = dg.PROMPT_VERSION
+        data = json.loads(dg.actor_system(job, "user")[len(dg.USER_PROMPT) + 1:])
+        self.assertNotIn("communication_style", data["profile"])
+        self.assertEqual(data["profile"]["identity"], original["identity"])
+        self.assertEqual(job["user"], original)
+        document = dg.read_json(dg.ROOT / "profiles/User_profile/generated/User_profile.json")
+        for profile in document["profiles"]:
+            profile.pop("communication_style")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "users.json"
+            dg.write_json(path, document)
+            catalog = dg.load_catalog(path, dg.DEFAULT_SCHEMES, dg.ROOT / "profiles/Character_profile")
+            self.assertEqual(catalog[0]["profiles"], document["profiles"])
+
+
+class UserBehaviorTests(unittest.TestCase):
+    def test_presets_select_by_id_or_random(self):
+        presets = dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "random")
+        self.assertEqual(len(presets), 9)
+        self.assertEqual({(item["tone"], item["response_length"]) for item in presets},
+                         {(tone, length) for tone in ("neutral", "gentle", "sharp")
+                          for length in ("minimal", "short", "long")})
+        self.assertEqual(dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS)[0]["id"], "neutral_short")
+        self.assertEqual(dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "sharp_minimal"),
+                         [next(item for item in presets if item["id"] == "sharp_minimal")])
+        with self.assertRaisesRegex(ValueError, "Unknown user behavior.*Available:"):
+            dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "missing")
+
+    def test_malformed_behaviors_fail_before_planning(self):
+        valid = dg.read_json(dg.DEFAULT_USER_BEHAVIORS)
+        invalid = [[], {"schema_version": "1.0", "presets": valid["presets"]},
+                   {"schema_version": "2.0", "presets": []},
+                   {"schema_version": "2.0", "presets": [None]}]
+        for key, value in (("id", "random"), ("id", ""), ("response_length", "tiny"),
+                           ("tone", "angry"), ("tone", []),
+                           ("new_information_per_turn", 2), ("disclosure_mode", []),
+                           ("habit", "false_premise"), ("habit_frequency", True),
+                           ("unexpected", "ignored typo")):
+            document = copy.deepcopy(valid)
+            document["presets"][0][key] = value
+            invalid.append(document)
+        missing = copy.deepcopy(valid)
+        missing["presets"][0].pop("tone")
+        invalid.append(missing)
+        duplicate = copy.deepcopy(valid)
+        duplicate["presets"].append(copy.deepcopy(duplicate["presets"][0]))
+        invalid.append(duplicate)
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "behaviors.json"
+            output = Path(directory) / "output"
+            for index, document in enumerate(invalid):
+                with self.subTest(case=index):
+                    dg.write_json(config, document)
+                    with patch("sys.argv", ["dialogue_generate.py", "plan", "--user-behaviors",
+                                             str(config), "--output", str(output)]):
+                        with self.assertRaises(ValueError):
+                            dg.main()
+                    self.assertFalse(output.exists())
+
+    def test_behavior_rng_preserves_pairing_and_copies_each_snapshot(self):
+        catalog = dg.load_catalog(dg.DEFAULT_USERS, dg.DEFAULT_SCHEMES,
+                                  dg.ROOT / "profiles/Character_profile")
+        original = dg.make_jobs(catalog, 12, 123)
+        random_jobs = copy.deepcopy(original)
+        same_jobs = copy.deepcopy(original)
+        fixed_jobs = copy.deepcopy(original)
+        presets = dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "random")
+        dg.assign_user_behaviors(random_jobs, presets, 123)
+        dg.assign_user_behaviors(same_jobs, presets, 123)
+        dg.assign_user_behaviors(fixed_jobs, presets[:1], 123)
+        self.assertEqual(random_jobs, same_jobs)
+        self.assertGreater(len({job["user_behavior"]["id"] for job in random_jobs}), 1)
+        for jobs in (random_jobs, fixed_jobs):
+            self.assertEqual([{k: v for k, v in job.items() if k != "user_behavior"} for job in jobs],
+                             original)
+        fixed_jobs[0]["user_behavior"]["response_length"] = "long"
+        self.assertEqual(fixed_jobs[1]["user_behavior"]["response_length"], "minimal")
+        presets[0]["response_length"] = "short"
+        self.assertEqual(fixed_jobs[1]["user_behavior"]["response_length"], "minimal")
+
+    def test_behavior_is_only_in_user_context_and_review_metadata(self):
+        job = fixture()
+        job["prompt_version"] = dg.PROMPT_VERSION
+        job["scene"] = dg.build_scene(job)
+        before_user = dg.actor_system(job, "user")
+        before_character = dg.actor_system(job, "character")
+        dg.assign_user_behaviors([job], dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "sharp_minimal"), 12)
+        after_user = dg.actor_system(job, "user")
+        self.assertTrue(after_user.startswith(dg.USER_PROMPT + "\n"))
+        data = json.loads(after_user[len(dg.USER_PROMPT) + 1:])
+        self.assertEqual(data.pop("user_behavior"), job["user_behavior"])
+        self.assertEqual(data, json.loads(before_user[len(dg.USER_PROMPT) + 1:]))
+        self.assertEqual(dg.actor_system(job, "character"), before_character)
+        self.assertEqual(dg.build_scene(job), job["scene"])
+        transcript = dg.review_transcript(job)
+        self.assertEqual(transcript["user_behavior"], job["user_behavior"])
+        self.assertNotIn("sharp_minimal", json.dumps(transcript["messages"]))
+
+    def test_snapshot_survives_interruption_config_changes_and_export(self):
+        with tempfile.TemporaryDirectory() as directory, patch("sys.stdout", io.StringIO()):
+            output = Path(directory) / "output"
+            config = Path(directory) / "behaviors.json"
+            document = dg.read_json(dg.DEFAULT_USER_BEHAVIORS)
+            document["presets"] = [{**document["presets"][3], "id": "custom_probe"}]
+            dg.write_json(config, document)
+            with patch("sys.argv", ["dialogue_generate.py", "plan", "--count", "1", "--output", str(output),
+                                     "--user-behaviors", str(config), "--user-behavior", "custom_probe"]):
+                dg.main()
+            expected = dg.read_job(output, "dialogue_00001")["user_behavior"]
+            dg.write_json(config, {"presets": []})
+            client = FakeClient(goal_round=1, fail_character=True)
+            requests = []
+
+            def call(role, messages, validator=None):
+                requests.append((role, messages))
+                return client.call(role, messages, validator)
+
+            with patch("sys.argv", ["dialogue_generate.py", "generate", "--resume", "--output", str(output)]), \
+                 patch.object(dg, "load_user_behaviors", side_effect=AssertionError("Must use saved behavior")), \
+                 patch.object(dg.ChatClient, "endpoint", return_value=({}, "https://example.invalid", "mock")), \
+                 patch.object(dg.ChatClient, "call", side_effect=call):
+                with self.assertRaisesRegex(RuntimeError, "simulated interruption"):
+                    dg.main()
+                partial = dg.read_job(output, "dialogue_00001")
+                self.assertEqual(partial["phase"], "character")
+                self.assertEqual(partial["user_behavior"], expected)
+                self.assertEqual(len(partial["messages"]), 1)
+                dg.main()
+            restored = dg.read_job(output, "dialogue_00001")
+            self.assertEqual(restored["user_behavior"], expected)
+            self.assertEqual(restored["rounds"], 1)
+            self.assertEqual(client.user_calls, 1)
+            self.assertEqual(client.character_calls, 1)
+            for role, messages in requests:
+                system = dg.USER_PROMPT if role == "user" else dg.CHARACTER_PROMPT
+                data = json.loads(messages[0]["content"][len(system) + 1:])
+                if role == "user":
+                    self.assertEqual(data["user_behavior"], expected)
+                else:
+                    self.assertNotIn("user_behavior", data)
+                    self.assertNotIn("custom_probe", json.dumps(messages))
+            self.assertEqual(dg.read_json(output / "dialogue_00001.json")["user_behavior"], expected)
+            self.assertEqual(dg.read_json(output / "dialogue_00001.progress.log")["state"]["user_behavior"], expected)
+            before_export = (output / "dialogue_00001.json").read_bytes()
+            with patch.object(dg, "load_user_behaviors", side_effect=AssertionError("No behavior file required")):
+                for command in ("render", "export"):
+                    with patch("sys.argv", ["dialogue_generate.py", command, "--output", str(output)]):
+                        dg.main()
+            self.assertEqual((output / "dialogue_00001.json").read_bytes(), before_export)
+            training = (output / "training.jsonl").read_text(encoding="utf-8")
+            self.assertNotIn("custom_probe", training)
+            self.assertNotIn("user_behavior", training)
+
+    def test_legacy_resume_does_not_add_behavior(self):
+        with tempfile.TemporaryDirectory() as directory, patch("sys.stdout", io.StringIO()):
+            output = Path(directory)
+            job = fixture()
+            job["id"] = "dialogue_00001"
+            dg.save_job(output, job)
+            requests = []
+            client = FakeClient(goal_round=1)
+
+            def call(role, messages, validator=None):
+                requests.append(messages)
+                return client.call(role, messages, validator)
+
+            with patch("sys.argv", ["dialogue_generate.py", "generate", "--resume", "--output", directory]), \
+                 patch.object(dg, "load_user_behaviors", side_effect=AssertionError("Legacy resume")), \
+                 patch.object(dg.ChatClient, "endpoint", return_value=({}, "https://example.invalid", "mock")), \
+                 patch.object(dg.ChatClient, "call", side_effect=call):
+                dg.main()
+            self.assertNotIn("user_behavior", dg.read_job(output, job["id"]))
+            self.assertNotIn("user_behavior", dg.read_json(output / f"{job['id']}.json"))
+            self.assertNotIn("conversation_start", dg.read_job(output, job["id"]))
+            for messages, prompt in zip(requests, (dg.LEGACY_USER_PROMPT, dg.CHARACTER_PROMPT)):
+                self.assertTrue(messages[0]["content"].startswith(prompt + "\n"))
+                data = json.loads(messages[0]["content"][len(prompt) + 1:])
+                self.assertNotIn("user_behavior", data)
+                self.assertNotIn("conversation_start", data)
+
+    def test_resume_and_export_reject_behavior_overrides_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory, patch("sys.stderr", io.StringIO()):
+            output = Path(directory) / "output"
+            for command in (["generate", "--resume"], ["plan", "--resume"], ["export"], ["render"]):
+                for option in (["--user-behavior", "neutral_short"], ["--user-behaviors", "missing.json"],
+                               ["--conversation-mode", "open_chat"]):
+                    with self.subTest(command=command, option=option), \
+                         patch("sys.argv", ["dialogue_generate.py", *command, *option, "--output", str(output)]):
+                        with self.assertRaises(SystemExit) as error:
+                            dg.main()
+                        self.assertEqual(error.exception.code, 2)
+                        self.assertFalse(output.exists())
+
+    def test_legacy_behavior_snapshot_uses_legacy_prompt_when_resuming(self):
+        job = fixture()
+        job["prompt_version"] = "1.0"
+        job["user_behavior"] = {"schema_version": "1.0", "id": "brief_indirect", "response_length": "short",
+                                "new_information_per_turn": "low", "disclosure_mode": "on_request",
+                                "habit": "indirect_experience", "habit_frequency": "occasional"}
+        expected = copy.deepcopy(job["user_behavior"])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            dg.save_job(output, job)
+            restored = dg.read_job(output, "test")
+            client = FakeClient(goal_round=1)
+            dg.run_job(restored, client, lambda: dg.save_job(output, restored))
+            restored = dg.read_job(output, "test")
+            system = dg.actor_system(restored, "user")
+            self.assertTrue(system.startswith(dg.LEGACY_USER_PROMPT + "\n"))
+            data = json.loads(system[len(dg.LEGACY_USER_PROMPT) + 1:])
+            self.assertEqual(data["user_behavior"], expected)
+            self.assertEqual(restored["user_behavior"], expected)
+            self.assertNotIn("conversation_start", restored)
+            self.assertEqual(restored["status"], "completed")
 
 
 if __name__ == "__main__":

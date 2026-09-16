@@ -1,0 +1,50 @@
+{
+  "schema_version": "2.0",
+  "presets": [
+    {
+      "id": "neutral_minimal",
+      "tone": "neutral",
+      "response_length": "minimal"
+    },
+    {
+      "id": "neutral_short",
+      "tone": "neutral",
+      "response_length": "short"
+    },
+    {
+      "id": "neutral_long",
+      "tone": "neutral",
+      "response_length": "long"
+    },
+    {
+      "id": "gentle_minimal",
+      "tone": "gentle",
+      "response_length": "minimal"
+    },
+    {
+      "id": "gentle_short",
+      "tone": "gentle",
+      "response_length": "short"
+    },
+    {
+      "id": "gentle_long",
+      "tone": "gentle",
+      "response_length": "long"
+    },
+    {
+      "id": "sharp_minimal",
+      "tone": "sharp",
+      "response_length": "minimal"
+    },
+    {
+      "id": "sharp_short",
+      "tone": "sharp",
+      "response_length": "short"
+    },
+    {
+      "id": "sharp_long",
+      "tone": "sharp",
+      "response_length": "long"
+    }
+  ]
+}
