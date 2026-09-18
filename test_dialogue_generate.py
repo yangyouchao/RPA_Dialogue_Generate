@@ -277,6 +277,38 @@ class DialogueTests(unittest.TestCase):
         for item in merged["subtopics"]:
             self.assertEqual(list(item), list(merged["subtopics"][0]))
 
+    def test_open_source_personas_are_translated_and_traceable(self):
+        root = dg.ROOT / "profiles/User_profile/open_source"
+        users = dg.read_json(root / "User_profile.json")
+        translations = dg.read_json(root / "persona_translations_zh.json")
+        self.assertEqual(len(users["profiles"]), 50)
+        self.assertEqual(len(translations), 91)
+        self.assertEqual(len({p["persona"] for p in users["profiles"]}), 49)
+        self.assertEqual([p["source_row_index"] for p in users["profiles"]], list(range(50)))
+        translated_lines = set(translations.values())
+        for profile in users["profiles"]:
+            lines = profile["persona"].splitlines()
+            self.assertTrue(lines)
+            self.assertTrue(all(line in translated_lines for line in lines))
+            self.assertFalse(any("\\n" in line for line in lines))
+
+
+    def test_open_source_personas_are_translated_and_traceable(self):
+        root = dg.ROOT / "profiles/User_profile/open_source"
+        users = dg.read_json(root / "User_profile.json")
+        translations = dg.read_json(root / "persona_translations_zh.json")
+        self.assertEqual(len(users["profiles"]), 50)
+        self.assertEqual(len(translations), 91)
+        self.assertEqual(len({p["persona"] for p in users["profiles"]}), 49)
+        self.assertEqual([p["source_row_index"] for p in users["profiles"]], list(range(50)))
+        translated_lines = set(translations.values())
+        for profile in users["profiles"]:
+            lines = profile["persona"].splitlines()
+            self.assertTrue(lines)
+            self.assertTrue(all(line in translated_lines for line in lines))
+            self.assertFalse(any("\\n" in line for line in lines))
+
+
     def test_dailydialog_matches_service_topic_fields(self):
         import runpy
         builder = runpy.run_path(str(dg.ROOT / "tmp/dailydialog_20/build.py"))
@@ -609,6 +641,51 @@ class DialogueTests(unittest.TestCase):
 
 
 class ConversationStartTests(unittest.TestCase):
+    def test_character_only_receives_profile_and_public_utterances(self):
+        job = fixture()
+        job["scene"] = copy.deepcopy(SCENE)
+        job["scene"]["public"].update(background="HIDDEN_BACKGROUND", trigger="HIDDEN_TRIGGER",
+                                      boundary="HIDDEN_BOUNDARY", facts=["HIDDEN_FACT"])
+        job["messages"] = [{"speaker": "user", "content": "我周六想去看房。"},
+                           {"speaker": "character", "content": "有什么要求？"},
+                           {"speaker": "user", "content": "两居室。"}]
+        expected = [{"role": "system", "content": dg.CHARACTER_PROMPT + "\n" + dg.dumps({
+            "profile": job["character"]["profile"]})},
+            {"role": "user", "content": "我周六想去看房。"},
+            {"role": "assistant", "content": "有什么要求？"},
+            {"role": "user", "content": "两居室。"}]
+        self.assertEqual(dg.actor_messages(job, "character"), expected)
+        self.assertIn("HIDDEN_TRIGGER", dg.actor_system(job, "user"))
+        job.pop("scene")
+        self.assertEqual(dg.actor_messages(job, "character"), expected)
+        job["messages"] = []
+        self.assertEqual(dg.actor_messages(job, "character"), expected[:1])
+
+    def test_mode_is_user_only_in_requests_resume_and_training_export(self):
+        for mode in dg.CONVERSATION_MODES:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                job = dg.make_jobs(self.catalog(mode), 1, 123, mode)[0]
+                dg.assign_user_behaviors([job], dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS), 123)
+                job["scene"] = dg.build_scene(job)
+                scene = copy.deepcopy(job["scene"])
+                dg.save_job(output, job)
+                restored = dg.read_job(output, job["id"])
+                for candidate in (job, restored):
+                    user = json.loads(dg.actor_system(candidate, "user")[len(dg.USER_PROMPT) + 1:])
+                    character = json.loads(dg.actor_messages(candidate, "character")[0]["content"][len(dg.CHARACTER_PROMPT) + 1:])
+                    self.assertEqual(user["scene"]["conversation_mode"], mode)
+                    self.assertEqual(user["conversation_start"]["mode"], mode)
+                    self.assertEqual(character, {"profile": candidate["character"]["profile"]})
+                    self.assertEqual(candidate["scene"], scene)
+                dg.run_job(restored, FakeClient(goal_round=1), lambda: dg.save_job(output, restored))
+                self.assertEqual(dg.export_jobs(output), 1)
+                record = json.loads((output / "training.jsonl").read_text(encoding="utf-8"))
+                context = json.loads(record["messages"][0]["content"][len(dg.CHARACTER_PROMPT) + 1:])
+                self.assertEqual(context, {"profile": restored["character"]["profile"]})
+                self.assertEqual(dg.read_json(output / f"{job['id']}.json")["scene"]["conversation_mode"], mode)
+                self.assertEqual(dg.read_job(output, job["id"])["scene"], scene)
+
     def catalog(self, mode="task", schemes=dg.DEFAULT_SCHEMES):
         return dg.load_catalog(dg.DEFAULT_USERS, schemes, dg.ROOT / "profiles/Character_profile",
                                conversation_mode=mode)
@@ -706,12 +783,13 @@ class ConversationStartTests(unittest.TestCase):
                     prompt = dg.USER_PROMPT if role == "user" else dg.CHARACTER_PROMPT
                     self.assertTrue(messages[0]["content"].startswith(prompt + "\n"))
                     data = json.loads(messages[0]["content"][len(prompt) + 1:])
-                    self.assertEqual(data["scene"]["conversation_mode"], mode)
-                    self.assertIsNone(data["scene"]["trigger"])
                     if role == "user":
+                        self.assertIsNone(data["scene"]["trigger"])
+                        self.assertEqual(data["scene"]["conversation_mode"], mode)
                         self.assertIsNone(data["user_goal"])
                         self.assertEqual(data["user_behavior"]["id"], "sharp_minimal")
                     else:
+                        self.assertEqual(set(data), {"profile"})
                         self.assertNotIn("conversation_start", data)
                         self.assertNotIn("user_behavior", data)
                 training = (output / "training.jsonl").read_text(encoding="utf-8")

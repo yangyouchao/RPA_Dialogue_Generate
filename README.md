@@ -84,7 +84,7 @@ python dialogue_generate.py generate --resume --output dialogues/batch_001
 | `user_behaviors.json` | User 语气与回应篇幅的 9 个组合预设，独立于用户画像 |
 | `.env.example` | API 环境变量模板 |
 | `profiles/Character_profile/*.json` | 角色设定 |
-| `profiles/User_profile/open_source/User_profile.json` | 默认用户素材：50 条 Synthetic-Persona-Chat 画像 |
+| `profiles/User_profile/open_source/User_profile.json` | 默认用户素材：50 条逐句译成中文的 Synthetic-Persona-Chat 画像 |
 | `profiles/User_profile/generated/User_profile.json` | 可选素材：50 条原创合成中文画像 |
 | `schema/open_source/topic_schema_20_zh.json` | 默认主题：20 个服务意图与 20 个 DailyDialog 闲聊主题，共 40 条；沿用原文件名 |
 | `schema/generated/topic_*.json` | 可选素材：12 个大主题、96 个子主题、192 条种子 |
@@ -256,7 +256,7 @@ python dialogue_generate.py generate --resume --output dialogues/behavior_trial
 
 流程为：读取配额 → 分配模式与素材、语气和长度 → 保存完整批次计划 → 本地场景 → User 发言 → Character 回复 → 本地结束判断；未结束则进入下一轮。批次和各轮 API 请求均串行执行。
 
-User 接收自己的画像、启动配置、行为配置、公开场景、目标（可为 `null`）、角色公开姓名和公开历史；Character 接收自己的完整 profile、公开场景和公开历史。User 的语气与篇幅配置不直接传给 Character。双方不会直接获得对方的完整画像。历史消息以当前发言者为视角转换：自己的发言标为 `assistant`，对方标为 `user`。
+User 接收自己的画像、启动配置、行为配置、场景、目标（可为 `null`）、角色公开姓名和公开历史。Character 仅接收扮演规则、自己的完整 profile 和双方公开对话历史（含 User 本轮最新发言）；不传入整个 `scene` 或 `private`，也不传入 User 画像、行为配置、启动配置、目标和模式。话题和情境只有在公开发言中被提及时才对 Character 可见。场景仍保存在阅读文件和日志中供人工检查，不作为 Character 的额外上下文；此规则同样适用于续跑和重新导出的训练文件。旧对话已经公开说出的内容仍保留在历史中。双方不会直接获得对方的完整画像。历史消息以当前发言者为视角转换：自己的发言标为 `assistant`，对方标为 `user`。
 
 User 返回 `{"message":"公开发言","goal_completed":false}`，Character 返回纯文本。一轮包含双方各一次发言。程序仅在以下情况停止：
 

@@ -78,6 +78,7 @@ def topics():
 
 
 def personas(csv_path=None):
+    translations = json.loads((ROOT / "profiles/User_profile/open_source/persona_translations_zh.json").read_text(encoding="utf-8"))
     if csv_path:
         stream = Path(csv_path).open(encoding="utf-8-sig", newline="")
     else:
@@ -92,15 +93,21 @@ def personas(csv_path=None):
         for row_index, row in enumerate(reader):
             if row_index == 50:
                 break
+            original = row[column]
+            lines = original.splitlines()
+            missing = [line for line in lines if line not in translations]
+            if missing:
+                raise ValueError(f"Missing persona translation in source row {row_index}: {missing}")
             records.append({"id": f"SPC_{row_index + 1:03d}", "source_row_index": row_index,
-                            "persona": row[column]})
+                            "persona": "\n".join(translations[line] for line in lines)})
     if len(records) != 50 or any(not r["persona"].strip() for r in records):
         raise ValueError("Expected first 50 nonempty rows; no skipping or replacement allowed")
     save(ROOT / "profiles/User_profile/open_source/User_profile.json", {
         "schema_version": "1.0", "version": REVISION, "format": "raw_persona",
         "source": "google/Synthetic-Persona-Chat", "source_url": URL, "license": "CC-BY-4.0",
         "split": "train", "column": column,
-        "selection": "First 50 data rows in the original CSV, zero-based rows 0..49; User 1 only; no shuffle, deduplication, translation, or inferred attributes.",
+        "selection": "First 50 data rows in the original CSV, zero-based rows 0..49; User 1 only; no shuffle, deduplication, or inferred attributes. Persona sentences translated to Chinese in their original order.",
+        "translation": "Manual Chinese translations in persona_translations_zh.json; original English remains in the pinned source CSV.",
         "profiles": records})
     print(f"Extracted {len(records)} personas; {len(set(r['persona'] for r in records))} unique exact texts")
 
