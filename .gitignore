@@ -22,6 +22,7 @@ dist/
 # Local dialogue outputs and data-processing intermediates
 /dialogues/
 /dialogues_ds
+/dialogue_qw
 /tmp/
 *.progress.log
 .generation.lock

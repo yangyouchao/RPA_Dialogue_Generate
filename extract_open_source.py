@@ -39,6 +39,44 @@ def save(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def deduplicate_personas(records):
+    """Collapse reordered, subset, and strongly overlapping persona variants."""
+    facts = [set(record["persona"].splitlines()) for record in records]
+    parents = list(range(len(records)))
+
+    def root(index):
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left, right):
+        left, right = root(left), root(right)
+        if left != right:
+            parents[right] = left
+
+    for left in range(len(records)):
+        for right in range(left + 1, len(records)):
+            intersection = len(facts[left] & facts[right])
+            union_size = len(facts[left] | facts[right])
+            subset = facts[left] <= facts[right] or facts[right] <= facts[left]
+            strong_overlap = intersection >= 3 and intersection / union_size >= 0.6
+            if subset or strong_overlap:
+                union(left, right)
+
+    groups = {}
+    for index in range(len(records)):
+        groups.setdefault(root(index), []).append(index)
+    selected = []
+    for indices in groups.values():
+        best = max(indices, key=lambda i: (len(facts[i]), -records[i]["source_row_index"]))
+        selected.append(records[best])
+    selected.sort(key=lambda record: record["source_row_index"])
+    for number, record in enumerate(selected, 1):
+        record["id"] = f"SPC_{number:03d}"
+    return selected
+
+
 def topics():
     raw = (ROOT / "schema.json").read_bytes()
     services = json.loads(raw.decode("utf-8-sig"))
@@ -101,15 +139,16 @@ def personas(csv_path=None):
             records.append({"id": f"SPC_{row_index + 1:03d}", "source_row_index": row_index,
                             "persona": "\n".join(translations[line] for line in lines)})
     if len(records) != 50 or any(not r["persona"].strip() for r in records):
-        raise ValueError("Expected first 50 nonempty rows; no skipping or replacement allowed")
+        raise ValueError("Expected the first 50 nonempty source rows")
+    records = deduplicate_personas(records)
     save(ROOT / "profiles/User_profile/open_source/User_profile.json", {
         "schema_version": "1.0", "version": REVISION, "format": "raw_persona",
         "source": "google/Synthetic-Persona-Chat", "source_url": URL, "license": "CC-BY-4.0",
         "split": "train", "column": column,
-        "selection": "First 50 data rows in the original CSV, zero-based rows 0..49; User 1 only; no shuffle, deduplication, or inferred attributes. Persona sentences translated to Chinese in their original order.",
+        "selection": "Read the first 50 CSV data rows (zero-based 0..49), User 1 only. Collapse profiles when their fact sets are identical/reordered, one is a subset of the other, or they share at least 3 facts with Jaccard similarity >= 0.6. Keep the most informative source row, breaking ties by earliest row; sort by source row and renumber IDs continuously. Translate sentences to Chinese without inferred facts.",
         "translation": "Manual Chinese translations in persona_translations_zh.json; original English remains in the pinned source CSV.",
         "profiles": records})
-    print(f"Extracted {len(records)} personas; {len(set(r['persona'] for r in records))} unique exact texts")
+    print(f"Extracted 50 source rows and retained {len(records)} distinct personas")
 
 
 if __name__ == "__main__":

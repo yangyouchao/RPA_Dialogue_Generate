@@ -84,7 +84,7 @@ python dialogue_generate.py generate --resume --output dialogues/batch_001
 | `user_behaviors.json` | User 语气与回应篇幅的 9 个组合预设，独立于用户画像 |
 | `.env.example` | API 环境变量模板 |
 | `profiles/Character_profile/*.json` | 角色设定 |
-| `profiles/User_profile/open_source/User_profile.json` | 默认用户素材：50 条逐句译成中文的 Synthetic-Persona-Chat 画像 |
+| `profiles/User_profile/open_source/User_profile.json` | 默认用户素材：从前50条 Synthetic-Persona-Chat 记录去重后保留的20条中文画像 |
 | `profiles/User_profile/generated/User_profile.json` | 可选素材：50 条原创合成中文画像 |
 | `schema/open_source/topic_schema_20_zh.json` | 默认主题：20 个服务意图与 20 个 DailyDialog 闲聊主题，共 40 条；沿用原文件名 |
 | `schema/generated/topic_*.json` | 可选素材：12 个大主题、96 个子主题、192 条种子 |
