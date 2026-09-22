@@ -24,12 +24,14 @@ dist/
 /dialogues_ds
 /dialogue_qw
 /docs
+/prompts
 /dialogue_dflen
 /tmp/
 *.progress.log
 .generation.lock
 .checkpoints/
 training.jsonl
+length_analysis.json
 *.tmp
 
 # Local editor / agent settings and operating-system files

@@ -26,14 +26,16 @@ DEFAULT_USERS = ROOT / "profiles/User_profile/open_source/User_profile.json"
 DEFAULT_SCHEMES = ROOT / "schema/open_source"
 DEFAULT_USER_BEHAVIORS = ROOT / "user_behaviors.json"
 SAMPLING_CONFIG = ROOT / "sampling_config.json"
-PROMPT_VERSION = "2.0"
-MAX_ROUNDS = 8
+PROMPT_VERSION = "3.0"
+MAX_ROUNDS = 20
 CONVERSATION_MODES = ("task", "topic_chat", "open_chat")
+LENGTH_CONDITIONS = ("minimal_minimal", "long_long", "minimal_long", "long_minimal")
+CONTENT_MODES = ("natural", "semantic_aligned")
 USER_BEHAVIOR_OPTIONS = {
     "tone": ("neutral", "gentle", "sharp"),
-    "response_length": ("minimal", "short", "long"),
 }
-QUOTA_OPTIONS = {"conversation_mode": CONVERSATION_MODES, **USER_BEHAVIOR_OPTIONS}
+QUOTA_OPTIONS = {"conversation_mode": CONVERSATION_MODES, "tone": USER_BEHAVIOR_OPTIONS["tone"],
+                 "length_condition": LENGTH_CONDITIONS}
 
 
 def load_api_env(path):
@@ -234,10 +236,10 @@ def bool_fields(obj, keys):
         require(type(obj.get(key)) is bool, f"Invalid boolean: {key}")
 
 
-def load_user_behaviors(path, selection="neutral_short"):
+def load_user_behaviors(path, selection="random"):
     document = read_json(path)
-    require(isinstance(document, dict) and document.get("schema_version") == "2.0",
-            "User behavior schema must be 2.0 (id, tone, response_length); resume uses saved legacy settings")
+    require(isinstance(document, dict) and document.get("schema_version") == "3.0",
+            "User behavior schema must be 3.0 (id, tone, length_condition, content_mode)")
     presets = document.get("presets")
     require(isinstance(presets, list) and presets, "No user behavior presets")
     ids = set()
@@ -245,9 +247,11 @@ def load_user_behaviors(path, selection="neutral_short"):
         text_field(preset, "id")
         require(preset["id"] != "random", "User behavior id 'random' is reserved for sampling")
         require(preset["id"] not in ids, "Duplicate user behavior id")
-        require(set(preset) == {"id", *USER_BEHAVIOR_OPTIONS},
+        require(set(preset) == {"id", "tone", "length_condition", "content_mode"},
                 f"Unexpected or missing fields in user behavior: {preset['id']}")
-        for key, choices in USER_BEHAVIOR_OPTIONS.items():
+        for key, choices in (("tone", USER_BEHAVIOR_OPTIONS["tone"]),
+                             ("length_condition", LENGTH_CONDITIONS),
+                             ("content_mode", CONTENT_MODES)):
             require(isinstance(preset[key], str) and preset[key] in choices,
                     f"Invalid user behavior {key}: expected one of {', '.join(choices)}")
         ids.add(preset["id"])
@@ -262,13 +266,13 @@ def assign_user_behaviors(jobs, presets, seed):
     # An independent RNG keeps actor/topic/scene sampling unchanged across behaviors.
     rng = random.Random(f"user_behaviors:{seed}")
     for job in jobs:
-        job["user_behavior"] = {"schema_version": "2.0", **rng.choice(presets)}
+        job["user_behavior"] = {"schema_version": "3.0", **rng.choice(presets)}
 
 
 def load_sampling_config():
     document = read_json(SAMPLING_CONFIG)
-    require(isinstance(document, dict) and document.get("schema_version") == "1.0",
-            "Sampling config schema must be 1.0")
+    require(isinstance(document, dict) and document.get("schema_version") == "2.0",
+            "Sampling config schema must be 2.0 (mode, tone and length_condition quotas)")
     require(set(document) == {"schema_version", *(f"{key}_distribution" for key in QUOTA_OPTIONS)},
             "Unexpected or missing fields in sampling config")
     for field, choices in QUOTA_OPTIONS.items():
@@ -334,14 +338,14 @@ def make_quota_jobs(catalog, count, seed, settings, presets, random_behavior=Fal
     by_behavior = {}
     if not random_behavior:
         for preset in presets:
-            key = (preset["tone"], preset["response_length"])
+            key = (preset["tone"], preset["length_condition"])
             require(key not in by_behavior, f"Duplicate tone/length combination: {key}")
             by_behavior[key] = preset
         for tone, number in quotas["tone"].items():
-            for length, length_number in quotas["response_length"].items():
-                if number and length_number:
-                    require((tone, length) in by_behavior,
-                            f"Missing user behavior preset for {tone}/{length}; adjust user_behaviors.json")
+            for condition, condition_number in quotas["length_condition"].items():
+                if number and condition_number:
+                    require((tone, condition) in by_behavior,
+                            f"Missing user behavior preset for {tone}/{condition}; adjust user_behaviors.json")
 
     jobs = []
     for mode, number in quotas["conversation_mode"].items():
@@ -359,35 +363,36 @@ def make_quota_jobs(catalog, count, seed, settings, presets, random_behavior=Fal
         tone_table = partition_quotas(quotas["conversation_mode"], quotas["tone"], rng)
         groups = {(mode, tone): tone_table[mode][tone]
                   for mode in CONVERSATION_MODES for tone in USER_BEHAVIOR_OPTIONS["tone"]}
-        length_table = partition_quotas(groups, quotas["response_length"], rng)
+        length_table = partition_quotas(groups, quotas["length_condition"], rng)
         assignments = {mode: [] for mode in CONVERSATION_MODES}
         for (mode, tone), lengths in length_table.items():
-            for length, number in lengths.items():
-                assignments[mode].extend([(tone, length)] * number)
+            for condition, number in lengths.items():
+                assignments[mode].extend([(tone, condition)] * number)
         for values in assignments.values():
             rng.shuffle(values)
         for job in jobs:
             key = assignments[job["conversation_start"]["mode"]].pop()
-            job["user_behavior"] = {"schema_version": "2.0", **by_behavior[key]}
+            job["user_behavior"] = {"schema_version": "3.0", **by_behavior[key]}
     for index, job in enumerate(jobs, 1):
         job["id"] = f"dialogue_{index:05d}"
     actual = {field: dict.fromkeys(choices, 0) for field, choices in QUOTA_OPTIONS.items()}
     combinations = Counter()
     for job in jobs:
         mode = job["conversation_start"]["mode"]
-        tone, length = (job["user_behavior"][key] for key in USER_BEHAVIOR_OPTIONS)
+        tone = job["user_behavior"]["tone"]
+        condition = job["user_behavior"]["length_condition"]
         actual["conversation_mode"][mode] += 1
         actual["tone"][tone] += 1
-        actual["response_length"][length] += 1
-        combinations[(mode, tone, length)] += 1
+        actual["length_condition"][condition] += 1
+        combinations[(mode, tone, condition)] += 1
     targets = {**quotas}
     if random_behavior:
-        targets.update(tone=None, response_length=None)
-    summary = {"algorithm": "remaining_quota_v1", "count": count, "seed": seed,
+        targets.update(tone=None, length_condition=None)
+    summary = {"algorithm": "remaining_quota_v2", "count": count, "seed": seed,
                "effective_config": settings, "behavior_sampling": "random" if random_behavior else "quota",
                "target_counts": targets, "actual_counts": actual,
-               "combinations": [{"conversation_mode": mode, "tone": tone, "response_length": length,
-                                 "count": number} for (mode, tone, length), number in sorted(combinations.items())]}
+               "combinations": [{"conversation_mode": mode, "tone": tone, "length_condition": condition,
+                                 "count": number} for (mode, tone, condition), number in sorted(combinations.items())]}
     return jobs, summary
 
 
@@ -479,7 +484,7 @@ def make_jobs(catalog, count, seed, conversation_mode="task"):
                                             "topic": topic["name"] if topic is not None else None,
                                             "goal": situation},
                      "phase": "scene", "messages": [], "checks": [], "attempts": [],
-                     "prompt_version": PROMPT_VERSION})
+                     "prompt_version": PROMPT_VERSION, "max_rounds": MAX_ROUNDS, "switch_after_round": 10})
     return jobs
 
 
@@ -507,6 +512,19 @@ def validate_scene(value):
 def validate_user(value):
     text_field(value, "message")
     bool_fields(value, ["goal_completed"])
+
+
+def validate_aligned_user(value):
+    for key in ("core_intent", "minimal", "long"):
+        text_field(value, key)
+    bool_fields(value, ["goal_completed"])
+
+
+def capture_turn_usage(job, role, attempt_start, round_number):
+    # Only usage attached to this accepted call, never a previous turn or failed retry.
+    accepted = [x for x in job["attempts"][attempt_start:] if x.get("role") == role and x.get("ok")]
+    usage = accepted[-1].get("usage", {}) if accepted else {}
+    job.setdefault("turn_usage", {}).setdefault(str(round_number), {})[role] = usage if isinstance(usage, dict) else {}
 
 
 class ResponseFormatError(ValueError):
@@ -692,10 +710,10 @@ USER_PROMPT = """你是一个用户，正在与人物扮演系统中的 Characte
 
 一、基本信息与信息范围
 profile 提供你的身份、兴趣和已有经历等事实，约束你说话的内容，不要求你主动介绍这些资料。
-scene 是你对话的背景，在开始对话时不要透露；private 是你自己知道的信息；character_public_name 是对方的公开称呼。
+scene 是你对话的背景，可以在公开发言中自然透露必要信息；private 是你自己知道的信息；character_public_name 是对方的公开称呼。
 只能依据这些资料和公开对话历史交流，对话由你引起，不能假装知道 Character 未公开的完整设定或私密经历。
 不要为补充理由或维持聊天而编造自己的职业、家庭成员、长期经历，或双方此前存在的交情。
-user_behavior 控制本次表达的语气与篇幅；画像中的语言风格或习惯描述与之冲突时，以 user_behavior 为准，但不改变画像事实。
+user_behavior.tone 控制语气，current_response_length 控制篇幅；画像中的语言风格或习惯描述与之冲突时，以这两个字段为准，但不改变画像事实。
 
 二、对话启动方式
 根据 conversation_start.mode 开始交流：
@@ -713,11 +731,13 @@ topic_chat 和 open_chat 中，user_goal 为 null，不要自行补造一个待�
 犀利不等于无条件反对或辱骂。不能捏造对方说过的话或经历来制造矛盾；对方纠正错误后应据此调整表达。
 
 四、回应长短
-根据 user_behavior.response_length 控制篇幅，以下是倾向而非必须凑满的字数：
+current_response_length 指定本轮长度，必须按此组织发言，不沿用历史的篇幅，也不根据对方篇幅自行改变。没有该字段时才参考旧 user_behavior.response_length，均缺失时用 short。
 - minimal：通常几个字、一个词或短语即可，允许不完整句子，例如“嗯”“不确定”“你说呢”。不必补充理由或解释。
 - short：通常一句简短表达，必要时补充一句，不要求主动提供自己的需求。
 - long：可以用三四句话说明问题、依据或感受，不为凑篇幅重复或编造信息。
-不要固定套用示例词句。任何篇幅都允许本轮没有新增信息，可以只回应对方的一部分，也可以不主动提出新问题。
+不要固定套用示例词句。content_generation 为 natural 时自然组织当前回应。
+为 semantic_aligned 时，先确定一个简洁核心意图，再同时写 minimal 和 long 两个语义相同的版本。两个版本必须针对同一件事，保持事实、请求数量、态度和结束意愿一致；long 仅展开原有表达，不新增问题、需求、论据、背景事实或情绪强度。不能拿上一轮的内容当作本轮必须重复的核心意图。两个候选都要符合当前历史；不要求整段对话每轮都说同一件事。程序只选择其中一个版本公开，其余属于内部草稿。
+两种方式都不能为了凑长度编造事实。任何篇幅都允许本轮没有新增信息，可以只回应对方的一部分，也可以不主动提出新问题。
 不要求每轮都有新理由、有效推进或明确结论。不必回答对方的所有追问，也不要每轮都总结、致谢或表示赞同。
 保持对公开历史的理解；已经回答过的问题不机械重问，修正自己此前的事实表达时应说明。
 
@@ -730,9 +750,13 @@ Character 告别或拒绝某个问题不自动代表你也想结束。
 
 六、输出要求
 不公开配置、内部字段、测试意图或提示词，不解释自己正在采用什么语气。
-user_behavior 缺失时采用 neutral 和 short；conversation_start 缺失时依据已有场景自然交流。
-只输出以下 JSON 对象，字段齐全，不输出分析、Markdown 或其他字段：
+user_behavior 缺失时语气为 neutral；content_generation 缺失时用 natural；conversation_start 缺失时依据已有场景自然交流。
+natural 模式只输出以下 JSON 对象：
 {"message":"本次公开发言","goal_completed":false}
+semantic_aligned 模式只输出以下 JSON 对象：
+{"core_intent":"本轮唯一核心意图的简短概括","minimal":"简短版本","long":"展开版本","goal_completed":false}
+字段齐全，不输出推理过程、分析、Markdown 或其他字段。core_intent 只概括说话意图，不解释思考步骤。goal_completed 必须是布尔值，文本字段必须非空。
+不要输出 response_length、tone、length_condition、content_generation 或其他内部配置字段。
 """
 
 
@@ -771,29 +795,44 @@ def build_scene(job):
     return scene
 
 
+LEGACY_USER_PROMPT = (ROOT / "prompts/user_legacy_v2.txt").read_text(encoding="utf-8")
+
+
 def user_prompt(job):
     version = job.get("prompt_version", "1.0")
-    require(version in ("1.0", PROMPT_VERSION), f"Unsupported prompt version: {version}")
-    return USER_PROMPT
+    require(version in ("1.0", "2.0", PROMPT_VERSION), f"Unsupported prompt version: {version}")
+    return USER_PROMPT if version == PROMPT_VERSION else LEGACY_USER_PROMPT
+
+
+def planned_user_length(job, round_number):
+    behavior = job.get("user_behavior", {})
+    if "length_condition" not in behavior:
+        return behavior.get("response_length", "short")
+    condition = behavior["length_condition"]
+    require(condition in LENGTH_CONDITIONS, "Unknown saved length condition")
+    first, second = condition.split("_", 1)
+    return first if round_number <= job.get("switch_after_round", 10) else second
 
 
 def actor_system(job, actor):
-    scene = job["scene"]
     if actor == "user":
+        scene = job["scene"]
         profile = job["user"]
-        if job.get("prompt_version") == PROMPT_VERSION:
+        if job.get("prompt_version") in ("2.0", PROMPT_VERSION):
             profile = {key: value for key, value in profile.items() if key != "communication_style"}
         data = {"profile": profile, "scene": scene["public"],
                 "user_goal": scene["user_goal"], "private": scene["user_private"],
                 "character_public_name": job["character"]["name"]}
         if "user_behavior" in job:
-            data["user_behavior"] = job["user_behavior"]
+            data["user_behavior"] = ({"tone": job["user_behavior"]["tone"]}
+                                     if "length_condition" in job["user_behavior"] else job["user_behavior"])
+            data["current_round"] = len(job["messages"]) // 2 + 1
+            data["current_response_length"] = planned_user_length(job, data["current_round"])
+            data["content_generation"] = job["user_behavior"].get("content_mode", "natural")
         if "conversation_start" in job:
             data["conversation_start"] = job["conversation_start"]
         return user_prompt(job) + "\n" + dumps(data)
-    character_scene = {key: value for key, value in scene["public"].items() if key != "conversation_mode"}
-    return CHARACTER_PROMPT + "\n" + dumps({"profile": job["character"]["profile"],
-                "scene": character_scene, "private": scene["character_private"]})
+    return CHARACTER_PROMPT + "\n" + dumps({"profile": job["character"]["profile"]})
 
 
 def actor_messages(job, actor):
@@ -805,9 +844,13 @@ def actor_messages(job, actor):
             flag = next((check["user_goal_flag"] for check in job["checks"]
                          if check["round"] == round_number), False)
             content = dumps({"message": content, "goal_completed": flag})
+            if job.get("user_behavior", {}).get("content_mode") == "semantic_aligned":
+                draft = job.get("semantic_drafts", {}).get(str(round_number))
+                if draft is not None:
+                    content = dumps(draft)
         messages.append({"role": "assistant" if turn["speaker"] == actor else "user",
                          "content": content})
-    if not job["messages"]:
+    if actor == "user" and not job["messages"]:
         opening = ("请根据设定的启动方式，自然发起交流。" if job.get("prompt_version") == PROMPT_VERSION
                    else "请根据本次处境，自然发起交流。")
         messages.append({"role": "user", "content": opening})
@@ -818,16 +861,32 @@ def stop_reasons(job):
     reasons = []
     if job.get("pending_goal", False):
         reasons.append("user_goal_completed")
-    if len(job["messages"]) // 2 >= MAX_ROUNDS:
+    if len(job["messages"]) // 2 >= job.get("max_rounds", 8):
         reasons.append("max_turns")
     return reasons
+
+
+def update_analysis_metrics(job):
+    from length_analysis import summarize_job
+    job["analysis_metrics"] = summarize_job(job)
 
 
 def finish_round(job, progress):
     require(len(job["messages"]) > 0 and len(job["messages"]) % 2 == 0,
             "Cannot finish an incomplete round")
     round_number = len(job["messages"]) // 2
-    check = {"round": round_number, "user_goal_flag": job.get("pending_goal", False)}
+    user_turn, character_turn = job["messages"][-2:]
+    count_chars = lambda value: sum(not char.isspace() for char in value)
+    check = {"round": round_number, "user_goal_flag": job.get("pending_goal", False),
+             "length_metrics": {
+                 "planned_user_length": planned_user_length(job, round_number),
+                 "character_completion_tokens": job.get("turn_usage", {}).get(str(round_number), {}).get("character", {}).get("completion_tokens"),
+                 "user_chars": count_chars(user_turn["content"]),
+                 "character_chars": count_chars(character_turn["content"]),
+                 "character_minus_user_chars": (count_chars(character_turn["content"])
+                                                 - count_chars(user_turn["content"])),
+                 "previous_character_chars": count_chars(job["messages"][-3]["content"]) if round_number > 1 else None,
+             }}
     job["checks"] = [item for item in job["checks"] if item["round"] != round_number] + [check]
     reasons = stop_reasons(job)
     if reasons:
@@ -840,6 +899,7 @@ def finish_round(job, progress):
         job.pop("stop_reason", None)
         job.pop("stop_reasons", None)
         job["phase"] = "user"
+    update_analysis_metrics(job)
 
 
 def prepare_unrestricted_scene(job):
@@ -858,8 +918,9 @@ def run_job(job, client, save, progress=None):
     save()
     while job["phase"] != "done":
         phase = job["phase"]
-        round_number = min(len(job["messages"]) // 2 + 1, MAX_ROUNDS)
-        progress("阶段", f"{phase} | 已完成={len(job['messages']) // 2}/{MAX_ROUNDS} 轮")
+        limit = job.get("max_rounds", 8)
+        round_number = min(len(job["messages"]) // 2 + 1, limit)
+        progress("阶段", f"{phase} | 已完成={len(job['messages']) // 2}/{limit} 轮")
         if phase == "scene":
             job["scene"] = build_scene(job)
             mode = job.get("conversation_start", {}).get("mode", "task")
@@ -867,15 +928,26 @@ def run_job(job, client, save, progress=None):
             progress("对话启动", f"模式={mode} | 主题={job['topic']['name'] if job['topic'] else '无预设主题'}")
             job["phase"] = "user"
         elif phase == "user":
-            result = client.call("user", actor_messages(job, "user"), validate_user)
+            aligned = job.get("user_behavior", {}).get("content_mode") == "semantic_aligned"
+            validator = validate_aligned_user if aligned else validate_user
+            attempt_start = len(job["attempts"])
+            result = client.call("user", actor_messages(job, "user"), validator)
+            validator(result)
+            capture_turn_usage(job, "user", attempt_start, round_number)
+            length = planned_user_length(job, round_number)
+            if aligned:
+                job.setdefault("semantic_drafts", {})[str(round_number)] = dict(result)
+                result = {"message": result[length], "goal_completed": result["goal_completed"]}
             job["messages"].append({"speaker": "user", "content": result["message"]})
             job["pending_goal"] = result["goal_completed"]
             job["phase"] = "character"
-            progress("User 完成", f"第 {round_number} 轮 | 用户结束标记={result['goal_completed']}")
+            progress("User 完成", f"第 {round_number} 轮 | 计划长度={length} | 用户结束标记={result['goal_completed']}")
         elif phase == "character":
+            attempt_start = len(job["attempts"])
             reply = client.call("character", actor_messages(job, "character"))
+            capture_turn_usage(job, "character", attempt_start, round_number)
             job["messages"].append({"speaker": "character", "content": reply})
-            progress("轮次完成", f"第 {len(job['messages']) // 2}/{MAX_ROUNDS} 轮")
+            progress("轮次完成", f"第 {len(job['messages']) // 2}/{limit} 轮")
             finish_round(job, progress)
         elif phase in ("turn_check", "quality"):
             # Resume old checkpoints locally without invoking retired judges.
@@ -949,7 +1021,7 @@ def main():
     parser.add_argument("--user-behaviors", type=Path,
                         help="User behavior JSON file for new samples (default: user_behaviors.json)")
     parser.add_argument("--user-behavior",
-                        help="Legacy preset/random override; default uses sampling_config.json tone/length quotas")
+                        help="Preset ID (minimal_minimal, long_long, minimal_long, long_minimal) or random")
     parser.add_argument("--config", type=Path, default=ROOT / "dialogue_config.json")
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env",
                         help="API settings file; existing process environment takes precedence")
@@ -987,7 +1059,8 @@ def main():
             settings["conversation_mode_distribution"] = {
                 mode: int(mode == args.conversation_mode) for mode in CONVERSATION_MODES}
         if args.user_behavior is not None and args.user_behavior != "random":
-            for field, choices in USER_BEHAVIOR_OPTIONS.items():
+            for field in ("tone", "length_condition"):
+                choices = QUOTA_OPTIONS[field]
                 settings[f"{field}_distribution"] = {
                     choice: int(choice == behaviors[0][field]) for choice in choices}
         mode_counts = sampling_counts(args.count, settings)["conversation_mode"]
@@ -1064,6 +1137,7 @@ def main():
             if "user_behavior" in job:
                 progress.emit("User 行为", f"预设={job['user_behavior']['id']}")
             def audit(entry):
+                entry.setdefault("round", len(job["messages"]) // 2 + 1)
                 job["attempts"].append(entry)
                 save()
             try:

@@ -13,10 +13,10 @@ import dialogue_generate as dg
 
 
 SETTINGS = {
-    "schema_version": "1.0",
+    "schema_version": "2.0",
     "conversation_mode_distribution": {"task": 0.4, "topic_chat": 0.3, "open_chat": 0.3},
     "tone_distribution": {"neutral": 0.4, "gentle": 0.2, "sharp": 0.4},
-    "response_length_distribution": {"minimal": 0.5, "short": 0.4, "long": 0.1},
+    "length_condition_distribution": dict.fromkeys(dg.LENGTH_CONDITIONS, 0.25),
 }
 
 
@@ -30,7 +30,14 @@ class QuotaTests(unittest.TestCase):
         override = patch.object(dg, "SAMPLING_CONFIG", self.config)
         override.start()
         self.addCleanup(override.stop)
-        self.presets = dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "random")
+        self.presets = [{"id": f"{tone}_{condition}", "tone": tone,
+                         "length_condition": condition, "content_mode": "natural"}
+                        for tone in dg.USER_BEHAVIOR_OPTIONS["tone"] for condition in dg.LENGTH_CONDITIONS]
+        behavior_path = self.root / "all_behaviors.json"
+        dg.write_json(behavior_path, {"schema_version": "3.0", "presets": self.presets})
+        behavior_override = patch.object(dg, "DEFAULT_USER_BEHAVIORS", behavior_path)
+        behavior_override.start()
+        self.addCleanup(behavior_override.stop)
 
     def catalog(self, mode="task", user_id=None):
         return dg.load_catalog(dg.DEFAULT_USERS, dg.DEFAULT_SCHEMES,
@@ -46,7 +53,7 @@ class QuotaTests(unittest.TestCase):
         self.assertEqual(summary["actual_counts"], {
             "conversation_mode": {"task": 40, "topic_chat": 30, "open_chat": 30},
             "tone": {"neutral": 40, "gentle": 20, "sharp": 40},
-            "response_length": {"minimal": 50, "short": 40, "long": 10}})
+            "length_condition": dict.fromkeys(dg.LENGTH_CONDITIONS, 25)})
         self.assertEqual(summary["target_counts"], summary["actual_counts"])
         for mode, expected in (("task", {"neutral": 16, "gentle": 8, "sharp": 16}),
                                ("topic_chat", {"neutral": 12, "gentle": 6, "sharp": 12}),
@@ -86,15 +93,15 @@ class QuotaTests(unittest.TestCase):
         self.assertNotEqual(first[0], dg.make_quota_jobs(catalog, 37, 43, SETTINGS, self.presets)[0])
         altered = copy.deepcopy(SETTINGS)
         altered["tone_distribution"] = {"neutral": 0, "gentle": 0, "sharp": 1}
-        altered["response_length_distribution"] = {"minimal": 0, "short": 1, "long": 0}
+        altered["length_condition_distribution"] = {x: int(x=="long_long") for x in dg.LENGTH_CONDITIONS}
         second, summary = dg.make_quota_jobs(catalog, 37, 42, altered, self.presets)
         strip_behavior = lambda jobs: [{key: value for key, value in job.items() if key != "user_behavior"} for job in jobs]
         self.assertEqual(strip_behavior(first[0]), strip_behavior(second))
         self.assertEqual(summary["actual_counts"]["tone"]["sharp"], 37)
-        self.assertEqual({job["user_behavior"]["id"] for job in second}, {"sharp_short"})
+        self.assertEqual({job["user_behavior"]["id"] for job in second}, {"sharp_long_long"})
 
     def test_invalid_config_rejected_before_writing_or_model_calls(self):
-        invalid = [[], {}, {**SETTINGS, "schema_version": "2.0"}, {**SETTINGS, "unexpected": 1}]
+        invalid = [[], {}, {**SETTINGS, "schema_version": "1.0"}, {**SETTINGS, "unexpected": 1}]
         for value in (-0.1, 1.1, True, "0.4", None, float("nan"), float("inf")):
             document = copy.deepcopy(SETTINGS)
             document["tone_distribution"]["sharp"] = value
@@ -143,7 +150,7 @@ class QuotaTests(unittest.TestCase):
         behaviors = self.root / "behaviors.json"
         for presets, message in ((self.presets[:-1], "Missing user behavior"),
                                  ([*self.presets, {**self.presets[0], "id": "alias"}], "Duplicate tone/length")):
-            dg.write_json(behaviors, {"schema_version": "2.0", "presets": presets})
+            dg.write_json(behaviors, {"schema_version": "3.0", "presets": presets})
             output = self.root / "bad_presets"
             with self.assertRaisesRegex(ValueError, message):
                 self.cli("plan", "--count", "100", "--user-behaviors", str(behaviors), "--output", str(output))
@@ -217,20 +224,20 @@ class QuotaTests(unittest.TestCase):
     def test_legacy_fixed_and_random_overrides_are_explicit_in_snapshot(self):
         output = self.root / "fixed"
         self.cli("plan", "--count", "10", "--conversation-mode", "topic_chat",
-                 "--user-behavior", "sharp_short", "--output", str(output))
+                 "--user-behavior", "sharp_long_long", "--output", str(output))
         for identifier in dg.job_ids(output):
             job = dg.read_job(output, identifier)
             self.assertEqual(job["conversation_start"]["mode"], "topic_chat")
-            self.assertEqual(job["user_behavior"]["id"], "sharp_short")
+            self.assertEqual(job["user_behavior"]["id"], "sharp_long_long")
             self.assertEqual(job["sampling_batch"]["overrides"],
-                             {"conversation_mode": "topic_chat", "user_behavior": "sharp_short"})
+                             {"conversation_mode": "topic_chat", "user_behavior": "sharp_long_long"})
             self.assertEqual(job["sampling_batch"]["source_config"], SETTINGS)
         random_output = self.root / "random"
         self.cli("plan", "--count", "10", "--user-behavior", "random", "--output", str(random_output))
         snapshot = dg.read_job(random_output, "dialogue_00001")["sampling_batch"]
         self.assertEqual(snapshot["behavior_sampling"], "random")
         self.assertIsNone(snapshot["target_counts"]["tone"])
-        self.assertIsNone(snapshot["target_counts"]["response_length"])
+        self.assertIsNone(snapshot["target_counts"]["length_condition"])
         self.assertEqual(snapshot["actual_counts"]["conversation_mode"], {"task": 4, "topic_chat": 3, "open_chat": 3})
 
 

@@ -179,7 +179,7 @@ class DialogueTests(unittest.TestCase):
             (output / "dialogue_00012.progress.log").write_text("{}", encoding="utf-8")
             before = {p.name: p.read_bytes() for p in output.iterdir()}
             with patch("sys.argv", ["dialogue_generate.py", "generate", "--append", "--count", "2",
-                                     "--character", "meng_ziyi_profile", "--user-behavior", "sharp_minimal",
+                                     "--character", "meng_ziyi_profile", "--user-behavior", "minimal_long",
                                      "--conversation-mode", "open_chat",
                                      "--output", directory]), \
                  patch.object(dg.ChatClient, "endpoint", return_value=("secret", "https://example.invalid", "mock")), \
@@ -191,7 +191,7 @@ class DialogueTests(unittest.TestCase):
                 self.assertEqual(job["phase"], "done")
                 self.assertTrue(job["messages"])
                 self.assertEqual(job["character"]["id"], "meng_ziyi_profile")
-                self.assertEqual(job["user_behavior"]["id"], "sharp_minimal")
+                self.assertEqual(job["user_behavior"]["id"], "minimal_long")
                 self.assertEqual(job["conversation_start"]["mode"], "open_chat")
                 self.assertIsNone(job["topic"])
             self.assertEqual(len(list(output.iterdir())), len(before) + 4)
@@ -270,7 +270,7 @@ class DialogueTests(unittest.TestCase):
             self.assertEqual(topic["intent_name"], intent["name"])
             self.assertEqual(topic["description_en"], intent["description"])
         self.assertEqual(len(dg.make_jobs((users, topics, chars), 2, 123)), 2)
-        merged = dg.read_json(dg.ROOT / "schema/open_source/topic_schema_20_zh.json")
+        merged = dg.read_json(dg.ROOT / "schema/open_source/topic_schema_zh.json")
         daily = dg.read_json(dg.ROOT / "tmp/dailydialog_20/output/topic_dailydialog_20_zh.json")
         self.assertEqual(merged["subtopics"][20:], daily["subtopics"])
         if "dailydialog_source" in merged:
@@ -310,7 +310,7 @@ class DialogueTests(unittest.TestCase):
     def test_dailydialog_matches_service_topic_fields(self):
         import runpy
         builder = runpy.run_path(str(dg.ROOT / "tmp/dailydialog_20/build.py"))
-        expected = dg.read_json(dg.ROOT / "schema/open_source/topic_schema_20_zh.json")["subtopics"][0]
+        expected = dg.read_json(dg.ROOT / "schema/open_source/topic_schema_zh.json")["subtopics"][0]
         with tempfile.TemporaryDirectory() as directory:
             builder["main"].__globals__["OUT"] = Path(directory)
             builder["main"]()
@@ -425,7 +425,7 @@ class DialogueTests(unittest.TestCase):
         dg.run_job(job, FakeClient(invalid_flag=True), lambda: None)
         self.assertEqual(job["stop_reason"], "user_goal_completed")
         self.assertEqual(len(job["messages"]), 2)
-        self.assertEqual(job["checks"][0], {"round": 1, "user_goal_flag": True})
+        self.assertEqual({k: job["checks"][0][k] for k in ("round", "user_goal_flag")}, {"round": 1, "user_goal_flag": True})
 
     def test_priority_keeps_all_reasons(self):
         job = fixture()
@@ -555,7 +555,7 @@ class DialogueTests(unittest.TestCase):
             transcript = dg.read_json(output / "dialogue_00001.json")
             self.assertEqual(set(transcript), {"messages", "scene", "user_goal", "completed_at",
                                                "user_behavior", "conversation_start"})
-            self.assertEqual(transcript["user_behavior"]["id"], "neutral_minimal")
+            self.assertEqual(transcript["user_behavior"]["id"], "minimal_minimal")
             self.assertEqual(transcript["conversation_start"]["mode"], "task")
             self.assertEqual([m["role"] for m in transcript["messages"]], ["system", "user", "assistant"])
             self.assertTrue(transcript["completed_at"])
@@ -750,7 +750,7 @@ class ConversationStartTests(unittest.TestCase):
                  patch("sys.stdout", io.StringIO()):
                 output = Path(directory)
                 with patch("sys.argv", ["dialogue_generate.py", "plan", "--count", "1", "--output", directory,
-                                         "--conversation-mode", mode, "--user-behavior", "sharp_minimal"]):
+                                         "--conversation-mode", mode, "--user-behavior", "minimal_long"]):
                     dg.main()
                 planned = dg.read_json(output / "dialogue_00001.json")
                 self.assertEqual(planned["conversation_start"]["mode"], mode)
@@ -785,13 +785,13 @@ class ConversationStartTests(unittest.TestCase):
                         self.assertIsNone(data["scene"]["trigger"])
                         self.assertEqual(data["scene"]["conversation_mode"], mode)
                         self.assertIsNone(data["user_goal"])
-                        self.assertEqual(data["user_behavior"]["id"], "sharp_minimal")
+                        self.assertEqual(data["current_response_length"], "minimal")
                     else:
                         self.assertEqual(set(data), {"profile"})
                         self.assertNotIn("conversation_start", data)
                         self.assertNotIn("user_behavior", data)
                 training = (output / "training.jsonl").read_text(encoding="utf-8")
-                self.assertNotIn("sharp_minimal", training)
+                self.assertNotIn("minimal_long", training)
                 self.assertEqual(len(json.loads(training)["messages"]), 5)
 
     def test_minimal_reply_does_not_stop_without_user_end_flag(self):
@@ -804,7 +804,7 @@ class ConversationStartTests(unittest.TestCase):
 
         for end_round in (2, None):
             job = dg.make_jobs(self.catalog("open_chat"), 1, 123, "open_chat")[0]
-            dg.assign_user_behaviors([job], dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "sharp_minimal"), 123)
+            dg.assign_user_behaviors([job], dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "minimal_long"), 123)
             client = MinimalClient(goal_round=end_round)
             dg.run_job(job, client, lambda: None)
             self.assertEqual(job["rounds"], end_round or dg.MAX_ROUNDS)
@@ -836,13 +836,11 @@ class ConversationStartTests(unittest.TestCase):
 class UserBehaviorTests(unittest.TestCase):
     def test_presets_select_by_id_or_random(self):
         presets = dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "random")
-        self.assertEqual(len(presets), 9)
-        self.assertEqual({(item["tone"], item["response_length"]) for item in presets},
-                         {(tone, length) for tone in ("neutral", "gentle", "sharp")
-                          for length in ("minimal", "short", "long")})
-        self.assertEqual(dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS)[0]["id"], "neutral_short")
-        self.assertEqual(dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "sharp_minimal"),
-                         [next(item for item in presets if item["id"] == "sharp_minimal")])
+        self.assertEqual(len(presets), 4)
+        self.assertEqual({item["length_condition"] for item in presets}, set(dg.LENGTH_CONDITIONS))
+        self.assertEqual(dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS)[0]["id"], "minimal_minimal")
+        self.assertEqual(dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "minimal_long"),
+                         [next(item for item in presets if item["id"] == "minimal_long")])
         with self.assertRaisesRegex(ValueError, "Unknown user behavior.*Available:"):
             dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "missing")
 
@@ -893,10 +891,10 @@ class UserBehaviorTests(unittest.TestCase):
         for jobs in (random_jobs, fixed_jobs):
             self.assertEqual([{k: v for k, v in job.items() if k != "user_behavior"} for job in jobs],
                              original)
-        fixed_jobs[0]["user_behavior"]["response_length"] = "long"
-        self.assertEqual(fixed_jobs[1]["user_behavior"]["response_length"], "minimal")
-        presets[0]["response_length"] = "short"
-        self.assertEqual(fixed_jobs[1]["user_behavior"]["response_length"], "minimal")
+        fixed_jobs[0]["user_behavior"]["length_condition"] = "long_long"
+        self.assertEqual(fixed_jobs[1]["user_behavior"]["length_condition"], "minimal_minimal")
+        presets[0]["length_condition"] = "long_long"
+        self.assertEqual(fixed_jobs[1]["user_behavior"]["length_condition"], "minimal_minimal")
 
     def test_behavior_is_only_in_user_context_and_review_metadata(self):
         job = fixture()
@@ -904,17 +902,20 @@ class UserBehaviorTests(unittest.TestCase):
         job["scene"] = dg.build_scene(job)
         before_user = dg.actor_system(job, "user")
         before_character = dg.actor_system(job, "character")
-        dg.assign_user_behaviors([job], dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "sharp_minimal"), 12)
+        dg.assign_user_behaviors([job], dg.load_user_behaviors(dg.DEFAULT_USER_BEHAVIORS, "minimal_long"), 12)
         after_user = dg.actor_system(job, "user")
         self.assertTrue(after_user.startswith(dg.USER_PROMPT + "\n"))
         data = json.loads(after_user[len(dg.USER_PROMPT) + 1:])
-        self.assertEqual(data.pop("user_behavior"), job["user_behavior"])
+        self.assertEqual(data.pop("user_behavior"), {"tone": job["user_behavior"]["tone"]})
+        self.assertEqual(data.pop("current_response_length"), "minimal")
+        self.assertEqual(data.pop("content_generation"), "natural")
+        data.pop("current_round")
         self.assertEqual(data, json.loads(before_user[len(dg.USER_PROMPT) + 1:]))
         self.assertEqual(dg.actor_system(job, "character"), before_character)
         self.assertEqual(dg.build_scene(job), job["scene"])
         transcript = dg.review_transcript(job)
         self.assertEqual(transcript["user_behavior"], job["user_behavior"])
-        self.assertNotIn("sharp_minimal", json.dumps(transcript["messages"]))
+        self.assertNotIn("minimal_long", json.dumps(transcript["messages"]))
 
     def test_snapshot_survives_interruption_config_changes_and_export(self):
         with tempfile.TemporaryDirectory() as directory, patch("sys.stdout", io.StringIO()):
@@ -955,7 +956,7 @@ class UserBehaviorTests(unittest.TestCase):
                 system = dg.USER_PROMPT if role == "user" else dg.CHARACTER_PROMPT
                 data = json.loads(messages[0]["content"][len(system) + 1:])
                 if role == "user":
-                    self.assertEqual(data["user_behavior"], expected)
+                    self.assertEqual(data["user_behavior"], {"tone": expected["tone"]})
                 else:
                     self.assertNotIn("user_behavior", data)
                     self.assertNotIn("custom_probe", json.dumps(messages))
@@ -1002,7 +1003,7 @@ class UserBehaviorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch("sys.stderr", io.StringIO()):
             output = Path(directory) / "output"
             for command in (["generate", "--resume"], ["plan", "--resume"], ["export"], ["render"]):
-                for option in (["--user-behavior", "neutral_short"], ["--user-behaviors", "missing.json"],
+                for option in (["--user-behavior", "minimal_minimal"], ["--user-behaviors", "missing.json"],
                                ["--conversation-mode", "open_chat"]):
                     with self.subTest(command=command, option=option), \
                          patch("sys.argv", ["dialogue_generate.py", *command, *option, "--output", str(output)]):

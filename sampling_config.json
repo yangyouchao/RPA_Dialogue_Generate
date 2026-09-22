@@ -1,18 +1,6 @@
 {
-  "schema_version": "1.0",
-  "conversation_mode_distribution": {
-    "task": 0.4,
-    "topic_chat": 0.3,
-    "open_chat": 0.3
-  },
-  "tone_distribution": {
-    "neutral": 0.4,
-    "gentle": 0.2,
-    "sharp": 0.4
-  },
-  "response_length_distribution": {
-    "minimal": 0.5,
-    "short": 0.4,
-    "long": 0.1
-  }
+  "schema_version": "2.0",
+  "conversation_mode_distribution": {"task": 0.4, "topic_chat": 0.3, "open_chat": 0.3},
+  "tone_distribution": {"neutral": 1.0, "gentle": 0.0, "sharp": 0.0},
+  "length_condition_distribution": {"minimal_minimal": 0.25, "long_long": 0.25, "minimal_long": 0.25, "long_minimal": 0.25}
 }
