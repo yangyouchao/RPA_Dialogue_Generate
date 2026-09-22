@@ -23,6 +23,8 @@ dist/
 /dialogues/
 /dialogues_ds
 /dialogue_qw
+/docs
+/dialogue_dflen
 /tmp/
 *.progress.log
 .generation.lock

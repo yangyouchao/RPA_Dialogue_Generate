@@ -1,10 +1,11 @@
-"""Reproduce the selected schema topics and first 50 User 1 personas."""
+"""Reproduce the selected schema topics and 50 distinct User 1 personas."""
 import argparse
 import csv
 import hashlib
 import io
 import json
 from pathlib import Path
+import re
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent
@@ -39,9 +40,29 @@ def save(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def normalize_persona_fact(value):
+    """Normalize common source variants before comparing persona facts."""
+    value = re.sub(r"[^a-z0-9]+", " ", value.lower().replace("cannot", "can not")).strip()
+    replacements = (
+        (r"\bi m\b", "i am"), (r"\bi ve\b", "i have"),
+        (r"\bi d\b", "i would"), (r"\bi ll\b", "i will"),
+        (r"\bdon t\b", "do not"), (r"\bdoesn t\b", "does not"),
+        (r"\bdidn t\b", "did not"), (r"\bcan t\b", "can not"),
+        (r"\bwon t\b", "will not"), (r"\bparent s\b", "parents"),
+        (r"\bparents s\b", "parents"),
+        (r"\brecently started to work\b", "recently started working"),
+        (r"\bfriends do not call my by\b", "friends do not call me by"),
+    )
+    for pattern, replacement in replacements:
+        value = re.sub(pattern, replacement, value)
+    return value
+
+
 def deduplicate_personas(records):
     """Collapse reordered, subset, and strongly overlapping persona variants."""
-    facts = [set(record["persona"].splitlines()) for record in records]
+    facts = [set(normalize_persona_fact(line) for line in
+                 (record["source_persona"] if "source_persona" in record else record["persona"]).splitlines())
+             for record in records]
     parents = list(range(len(records)))
 
     def root(index):
@@ -58,9 +79,8 @@ def deduplicate_personas(records):
     for left in range(len(records)):
         for right in range(left + 1, len(records)):
             intersection = len(facts[left] & facts[right])
-            union_size = len(facts[left] | facts[right])
             subset = facts[left] <= facts[right] or facts[right] <= facts[left]
-            strong_overlap = intersection >= 3 and intersection / union_size >= 0.6
+            strong_overlap = intersection >= 3
             if subset or strong_overlap:
                 union(left, right)
 
@@ -117,38 +137,54 @@ def topics():
 
 def personas(csv_path=None):
     translations = json.loads((ROOT / "profiles/User_profile/open_source/persona_translations_zh.json").read_text(encoding="utf-8"))
+    expansions = json.loads((ROOT / "profiles/User_profile/open_source/persona_expansions_zh.json").read_text(encoding="utf-8"))
     if csv_path:
         stream = Path(csv_path).open(encoding="utf-8-sig", newline="")
     else:
         response = urllib.request.urlopen(URL, timeout=60)
         stream = io.TextIOWrapper(response, encoding="utf-8-sig", newline="")
     records = []
+    rows_read = 0
     with stream:
         reader = csv.DictReader(stream)
         column = "user 1 personas"
         if column not in reader.fieldnames:
             raise ValueError(f"Unexpected CSV columns: {reader.fieldnames}")
         for row_index, row in enumerate(reader):
-            if row_index == 50:
-                break
             original = row[column]
-            lines = original.splitlines()
-            missing = [line for line in lines if line not in translations]
-            if missing:
-                raise ValueError(f"Missing persona translation in source row {row_index}: {missing}")
-            records.append({"id": f"SPC_{row_index + 1:03d}", "source_row_index": row_index,
-                            "persona": "\n".join(translations[line] for line in lines)})
-    if len(records) != 50 or any(not r["persona"].strip() for r in records):
-        raise ValueError("Expected the first 50 nonempty source rows")
-    records = deduplicate_personas(records)
+            if not original.strip():
+                continue
+            records.append({"source_row_index": row_index, "source_persona": original})
+            rows_read = row_index + 1
+            records = deduplicate_personas(records)
+            if len(records) == 50:
+                break
+    if len(records) != 50:
+        raise ValueError("Source ended before 50 distinct personas were found")
+    translated = []
+    for number, record in enumerate(records, 1):
+        lines = record["source_persona"].splitlines()
+        missing = [line for line in lines if line not in translations]
+        if missing:
+            raise ValueError(f"Missing persona translation in source row {record['source_row_index']}: {missing}")
+        additions = expansions.get(str(record["source_row_index"]))
+        if not isinstance(additions, list) or not additions or any(not isinstance(line, str) or not line for line in additions):
+            raise ValueError(f"Missing persona expansion for source row {record['source_row_index']}")
+        persona = "\n".join([*(translations[line] for line in lines), *additions])
+        visible_length = len(persona.replace("\n", ""))
+        if not 85 <= visible_length <= 115:
+            raise ValueError(f"Expanded persona length out of range in source row {record['source_row_index']}: {visible_length}")
+        translated.append({"id": f"SPC_{number:03d}",
+                           "source_row_index": record["source_row_index"],
+                           "persona": persona})
     save(ROOT / "profiles/User_profile/open_source/User_profile.json", {
         "schema_version": "1.0", "version": REVISION, "format": "raw_persona",
         "source": "google/Synthetic-Persona-Chat", "source_url": URL, "license": "CC-BY-4.0",
         "split": "train", "column": column,
-        "selection": "Read the first 50 CSV data rows (zero-based 0..49), User 1 only. Collapse profiles when their fact sets are identical/reordered, one is a subset of the other, or they share at least 3 facts with Jaccard similarity >= 0.6. Keep the most informative source row, breaking ties by earliest row; sort by source row and renumber IDs continuously. Translate sentences to Chinese without inferred facts.",
-        "translation": "Manual Chinese translations in persona_translations_zh.json; original English remains in the pinned source CSV.",
-        "profiles": records})
-    print(f"Extracted 50 source rows and retained {len(records)} distinct personas")
+        "selection": f"Read User 1 personas in source order until 50 distinct profiles remain ({rows_read} CSV data rows, zero-based 0..{rows_read - 1}). Normalize common contraction and wording variants before comparison. Collapse profiles when their fact sets are identical/reordered, one is a subset of the other, or they share at least 3 facts. Keep the most informative source row, breaking ties by earliest row; sort by source row and renumber IDs continuously. Translate sentences to Chinese without inferred facts.",
+        "translation": "Source facts are manually translated in persona_translations_zh.json. Clearly fictional modern-life details are appended from persona_expansions_zh.json; they are project-authored additions, not source-dataset claims.",
+        "profiles": translated})
+    print(f"Read {rows_read} source rows and retained {len(translated)} distinct personas")
 
 
 if __name__ == "__main__":

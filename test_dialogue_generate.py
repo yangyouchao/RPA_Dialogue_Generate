@@ -256,9 +256,11 @@ class DialogueTests(unittest.TestCase):
         users, topics, chars = dg.load_catalog(
             dg.ROOT / "profiles/User_profile/open_source/User_profile.json",
             dg.ROOT / "schema/open_source", dg.ROOT / "profiles/Character_profile")
-        self.assertEqual(len(users["profiles"]), 20)
+        self.assertEqual(len(users["profiles"]), 50)
         self.assertEqual([p["source_row_index"] for p in users["profiles"]],
-                         [2, 3, 4, 5, 8, 12, 15, 16, 19, 21, 22, 26, 31, 32, 33, 35, 37, 39, 42, 44])
+                         [2, 3, 4, 5, 8, 12, 15, 16, 19, 21, 22, 26, 31, 32, 33, 35, 37, 39,
+                          42, 44, 52, 57, 62, 65, 66, 70, 74, 76, 79, 81, 82, 84, 86, 89, 91,
+                          92, 93, 94, 100, 103, 107, 108, 109, 110, 114, 119, 120, 122, 123, 124])
         self.assertEqual(len(topics), 40)
         services = {s["service_name"]: s for s in dg.read_json(dg.ROOT / "schema.json")}
         for topic, selected in zip(topics, extraction.SELECTION):
@@ -282,19 +284,27 @@ class DialogueTests(unittest.TestCase):
         root = dg.ROOT / "profiles/User_profile/open_source"
         users = dg.read_json(root / "User_profile.json")
         translations = dg.read_json(root / "persona_translations_zh.json")
-        self.assertEqual(len(users["profiles"]), 20)
-        self.assertEqual(len(translations), 91)
-        self.assertEqual(len({p["persona"] for p in users["profiles"]}), 20)
+        expansions = dg.read_json(root / "persona_expansions_zh.json")
+        self.assertEqual(len(users["profiles"]), 50)
+        self.assertEqual(len({p["persona"] for p in users["profiles"]}), 50)
         self.assertEqual([p["id"] for p in users["profiles"]],
-                         [f"SPC_{number:03d}" for number in range(1, 21)])
+                         [f"SPC_{number:03d}" for number in range(1, 51)])
         self.assertEqual([p["source_row_index"] for p in users["profiles"]],
-                         [2, 3, 4, 5, 8, 12, 15, 16, 19, 21, 22, 26, 31, 32, 33, 35, 37, 39, 42, 44])
+                         [2, 3, 4, 5, 8, 12, 15, 16, 19, 21, 22, 26, 31, 32, 33, 35, 37, 39,
+                          42, 44, 52, 57, 62, 65, 66, 70, 74, 76, 79, 81, 82, 84, 86, 89, 91,
+                          92, 93, 94, 100, 103, 107, 108, 109, 110, 114, 119, 120, 122, 123, 124])
         translated_lines = set(translations.values())
+        expanded_lines = {line for lines in expansions.values() for line in lines}
+        self.assertEqual(set(expansions), {str(p["source_row_index"]) for p in users["profiles"]})
         for profile in users["profiles"]:
             lines = profile["persona"].splitlines()
             self.assertTrue(lines)
-            self.assertTrue(all(line in translated_lines for line in lines))
+            self.assertTrue(any(line in translated_lines for line in lines))
+            self.assertTrue(any(line in expanded_lines for line in lines))
+            self.assertTrue(all(line in translated_lines or line in expanded_lines for line in lines))
             self.assertFalse(any("\\n" in line for line in lines))
+            self.assertGreaterEqual(len(profile["persona"].replace("\n", "")), 85)
+            self.assertLessEqual(len(profile["persona"].replace("\n", "")), 115)
 
 
     def test_dailydialog_matches_service_topic_fields(self):
