@@ -285,7 +285,10 @@ class DialogueTests(unittest.TestCase):
         users = dg.read_json(root / "User_profile.json")
         translations = dg.read_json(root / "persona_translations_zh.json")
         expansions = dg.read_json(root / "persona_expansions_zh.json")
+        speech_styles = dg.read_json(root / "persona_speech_styles_zh.json")
         self.assertEqual(len(users["profiles"]), 50)
+        self.assertEqual(users["speech_style_source"],
+                         "Best Generated Conversation / User 1 turns, matched by source_row_index")
         self.assertEqual(len({p["persona"] for p in users["profiles"]}), 50)
         self.assertEqual([p["id"] for p in users["profiles"]],
                          [f"SPC_{number:03d}" for number in range(1, 51)])
@@ -296,7 +299,10 @@ class DialogueTests(unittest.TestCase):
         translated_lines = set(translations.values())
         expanded_lines = {line for lines in expansions.values() for line in lines}
         self.assertEqual(set(expansions), {str(p["source_row_index"]) for p in users["profiles"]})
+        self.assertEqual(set(speech_styles), set(expansions))
         for profile in users["profiles"]:
+            self.assertEqual(profile["speech_style"], speech_styles[str(profile["source_row_index"])])
+            self.assertTrue(profile["speech_style"].strip())
             lines = profile["persona"].splitlines()
             self.assertTrue(lines)
             self.assertTrue(any(line in translated_lines for line in lines))

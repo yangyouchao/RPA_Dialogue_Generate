@@ -138,12 +138,14 @@ def topics():
 def personas(csv_path=None):
     translations = json.loads((ROOT / "profiles/User_profile/open_source/persona_translations_zh.json").read_text(encoding="utf-8"))
     expansions = json.loads((ROOT / "profiles/User_profile/open_source/persona_expansions_zh.json").read_text(encoding="utf-8"))
+    speech_styles = json.loads((ROOT / "profiles/User_profile/open_source/persona_speech_styles_zh.json").read_text(encoding="utf-8"))
     if csv_path:
         stream = Path(csv_path).open(encoding="utf-8-sig", newline="")
     else:
         response = urllib.request.urlopen(URL, timeout=60)
         stream = io.TextIOWrapper(response, encoding="utf-8-sig", newline="")
     records = []
+    source_conversations = {}
     rows_read = 0
     with stream:
         reader = csv.DictReader(stream)
@@ -154,6 +156,7 @@ def personas(csv_path=None):
             original = row[column]
             if not original.strip():
                 continue
+            source_conversations[row_index] = row.get("Best Generated Conversation", "")
             records.append({"source_row_index": row_index, "source_persona": original})
             rows_read = row_index + 1
             records = deduplicate_personas(records)
@@ -174,15 +177,22 @@ def personas(csv_path=None):
         visible_length = len(persona.replace("\n", ""))
         if not 85 <= visible_length <= 115:
             raise ValueError(f"Expanded persona length out of range in source row {record['source_row_index']}: {visible_length}")
+        speech_style = speech_styles.get(str(record["source_row_index"]))
+        if not isinstance(speech_style, str) or not speech_style.strip():
+            raise ValueError(f"Missing speech style for source row {record['source_row_index']}")
+        conversation = source_conversations.get(record["source_row_index"], "")
+        if not any(line.startswith("User 1: ") for line in conversation.splitlines()):
+            raise ValueError(f"Missing User 1 dialogue for source row {record['source_row_index']}")
         translated.append({"id": f"SPC_{number:03d}",
                            "source_row_index": record["source_row_index"],
-                           "persona": persona})
+                           "persona": persona, "speech_style": speech_style})
     save(ROOT / "profiles/User_profile/open_source/User_profile.json", {
         "schema_version": "1.0", "version": REVISION, "format": "raw_persona",
         "source": "google/Synthetic-Persona-Chat", "source_url": URL, "license": "CC-BY-4.0",
         "split": "train", "column": column,
         "selection": f"Read User 1 personas in source order until 50 distinct profiles remain ({rows_read} CSV data rows, zero-based 0..{rows_read - 1}). Normalize common contraction and wording variants before comparison. Collapse profiles when their fact sets are identical/reordered, one is a subset of the other, or they share at least 3 facts. Keep the most informative source row, breaking ties by earliest row; sort by source row and renumber IDs continuously. Translate sentences to Chinese without inferred facts.",
-        "translation": "Source facts are manually translated in persona_translations_zh.json. Clearly fictional modern-life details are appended from persona_expansions_zh.json; they are project-authored additions, not source-dataset claims.",
+        "translation": "Source facts are manually translated in persona_translations_zh.json. Modern-life details in persona_expansions_zh.json are project-authored. Speech styles in persona_speech_styles_zh.json summarize User 1 utterances from the source's synthetic Best Generated Conversation column; dialogue claims are not added as persona facts.",
+        "speech_style_source": "Best Generated Conversation / User 1 turns, matched by source_row_index",
         "profiles": translated})
     print(f"Read {rows_read} source rows and retained {len(translated)} distinct personas")
 
