@@ -1,6 +1,6 @@
 # 角色多轮对话生成
 
-使用两个兼容 Chat Completions 的大模型 API，分别模拟 User 和 Character，结合用户画像、启动方式及语气与篇幅配置逐轮生成对话。支持具体场景交流、围绕话题闲聊和无预设话题闲聊，以及抽样计划、断点续跑、追加样本和训练数据导出。
+使用兼容 Chat Completions 的模型分别模拟 User 和 Character，结合画像、启动方式与语气配置逐轮生成对话；User 每轮自主决定篇幅，并默认由质检员从三个候选中选优。支持具体场景交流、围绕话题闲聊和无预设话题闲聊，以及抽样计划、断点续跑、追加样本和训练数据导出。
 
 当前只有 User 和 Character 调用模型；场景在本地构建，不调用导演、逐轮裁判或质量检查模型。生成完成的状态为 `completed`，不代表质量审核通过。
 
@@ -80,8 +80,8 @@ python dialogue_generate.py generate --resume --output dialogues/batch_001
 | --- | --- |
 | `dialogue_generate.py` | 主程序、提示词、抽样与对话状态管理 |
 | `dialogue_config.json` | 请求参数和环境变量名称，不存放密钥 |
-| `sampling_config.json` | 每次新建或追加的 mode、tone、response_length 配额比例 |
-| `user_behaviors.json` | User 语气与回应篇幅的 9 个组合预设，独立于用户画像 |
+| `sampling_config.json` | 每次新建或追加的 mode、tone 配额比例；User 每轮自主决定篇幅 |
+| `user_behaviors.json` | User 语气的 3 个预设，独立于用户画像 |
 | `.env.example` | API 环境变量模板 |
 | `profiles/Character_profile/*.json` | 角色设定 |
 | `profiles/User_profile/open_source/User_profile.json` | 默认用户素材：从 Synthetic-Persona-Chat 去重提取的50条中文画像及对应生成对话归纳的说话风格 |
@@ -111,18 +111,13 @@ python dialogue_generate.py generate --resume --output dialogues/batch_001
     "neutral": 0.4,
     "gentle": 0.2,
     "sharp": 0.4
-  },
-  "response_length_distribution": {
-    "minimal": 0.5,
-    "short": 0.4,
-    "long": 0.1
   }
 }
 ```
 
 每组保留全部类别，值为 0 到 1 的数字且总和为 1。设为 0 可排除该类别；只生成一种类型时，将它设为 1，其余设为 0。例如只生成无话题闲聊，将 `open_chat` 设为 1、`task` 和 `topic_chat` 设为 0。
 
-按当前配置生成 100 段，会分配 40 段 task、30 段 topic_chat、30 段 open_chat；40 段 neutral、20 段 gentle、40 段 sharp；50 段 minimal、40 段 short、10 段 long。这里的数量是独立对话段数，不是每段内部的聊天轮数。
+按当前配置生成 100 段，会分配 40 段 task、30 段 topic_chat、30 段 open_chat；40 段 neutral、20 段 gentle、40 段 sharp；不预分配回复长度。这里的数量是独立对话段数，不是每段内部的聊天轮数。
 
 ```powershell
 python dialogue_generate.py validate --count 100
@@ -134,18 +129,18 @@ python dialogue_generate.py generate --resume --output dialogues/quota_batch
 
 分配规则：
 
-1. 分别计算三个字段的整数配额：先向下取整，再按小数余量从大到小补齐名额；并列时按程序中固定类别顺序处理，不受 JSON 字段顺序影响。
-2. 按各模式的数量划分组，依据剩余 tone 配额按比例分配；再在“模式 × 语气”组内依据剩余长度配额分配。组顺序和最终对话顺序由 `seed` 打乱。
+1. 分别计算模式和语气两个字段的整数配额：先向下取整，再按小数余量从大到小补齐名额；并列时按程序中固定类别顺序处理，不受 JSON 字段顺序影响。
+2. 按各模式的数量划分组，依据剩余 tone 配额按比例分配。组顺序和最终对话顺序由 `seed` 打乱。
 3. 每个字段的批次总数严格满足取整后的配额；交叉组合尽量平衡，不保证每种组合都出现，也不保证小批次精确满足原始百分比。
-4. 在各模式内分别抽取 User、Character 和主题，再固定每段的行为。修改 tone 或长度比例不会改变同种子、同 mode 配额下的素材配对。
+4. 在各模式内分别抽取 User、Character 和主题，再固定每段的行为。修改 tone 比例不会改变同种子、同 mode 配额下的素材配对。
 
 配额只约束本次创建的计划。追加时按本次 `--count` 和当前配置另算，不补偿历史批次的比例；生成失败不会重新抽样，已完成子集的分布可能暂时不满足整批配额。续跑使用已保存的具体分配。
 
 素材容量不足时，在写入新计划或调用模型前报错，不自动降低配额或改变比例。固定双方时，open_chat 每批最多 1 段；task、topic_chat 各自最多为主题数量，不同模式允许使用同一组人物和主题。
 
-为兼容已有命令，保留 `--conversation-mode` 和 `--user-behavior`：显式模式覆盖 mode 配额；固定行为 ID 覆盖 tone 与长度配额；`--user-behavior random` 恢复旧的逐段随机行为抽样，不保证 tone 与长度数量。正常使用上述配置时请省略这些参数，覆盖情况会显示在终端并保存到日志。没有新增比例命令行参数。
+为兼容已有命令，保留 `--conversation-mode` 和 `--user-behavior`：显式模式覆盖 mode 配额；固定行为 ID 覆盖 tone 配额；`--user-behavior random` 恢复旧的逐段随机行为抽样，不保证 tone 数量。正常使用上述配置时请省略这些参数，覆盖情况会显示在终端并保存到日志。没有新增比例命令行参数。
 
-每段 `.progress.log` 的 `state.sampling_batch` 保存所属批次的 `source_config`、`effective_config`、`overrides`、`target_counts`、`actual_counts`、三字段组合数量 `combinations` 及首尾样本 ID。`actual_counts` 指已分配计划数量，不是已成功完成数量。该批次摘要不传给模型，也不写入训练样本；同批次各日志保存同一摘要，不应将它们再次相加。
+每段 `.progress.log` 的 `state.sampling_batch` 保存所属批次的 `source_config`、`effective_config`、`overrides`、`target_counts`、`actual_counts`、模式与语气组合数量 `combinations` 及首尾样本 ID。`actual_counts` 指已分配计划数量，不是已成功完成数量。该批次摘要不传给模型，也不写入训练样本；同批次各日志保存同一摘要，不应将它们再次相加。
 
 ## 主题抽样与场景构建
 
@@ -203,58 +198,85 @@ python dialogue_generate.py generate --count 5 --users profiles/User_profile/gen
 
 ## User 行为配置
 
-User 分为三部分：`profile` 提供身份、兴趣、知识和已有经历等基本信息；`conversation_start` 决定如何开始交流；`user_behavior` 只控制语气与回应篇幅。新任务传给 User 的画像不包含旧的 `communication_style` 字段，原画像文件仍保留该字段；加载合成画像时不再强制要求它存在。自由文本画像不做自动拆分，提示词要求其中的表达风格服从 `user_behavior`，事实仍以画像为准。
+User profile 提供身份、兴趣和已有经历；conversation_start 决定启动方式；user_behavior 只控制整段对话的语气。回复长度不再由配置预先分配，而由 User 模型每轮依据公开历史和自己的表达动机决定。
 
-新建或追加样本时，从 `user_behaviors.json` 读取行为预设，根据配额分配的 tone 与 response_length 查找对应预设，每段对话固定一个组合。比例由 `sampling_config.json` 控制，不需要逐一设置 9 个组合的权重，也不再默认固定 neutral_short。
+- minimal：只对某一点感兴趣时简短追问、确认细节，或简单回应。
+- short：用一两句表达当前看法、回答或感受。
+- long：内容与已有经历产生共鸣、想分享感受、解释分歧或说明多个相关细节时展开。
 
-| 语气 | 极短 `minimal` | 简短 `short` | 较长 `long` |
-| --- | --- | --- | --- |
-| 平常 `neutral` | `neutral_minimal` | `neutral_short` | `neutral_long` |
-| 柔和 `gentle` | `gentle_minimal` | `gentle_short` | `gentle_long` |
-| 犀利 `sharp` | `sharp_minimal` | `sharp_short` | `sharp_long` |
+这三类只是 prompt 中的表达说明，不是输出字段、固定句数或比例目标。可以连续简短，也可以自然由长转短；不因 Character 长篇回复而跟着变长，不为展开而编造经历。
 
-`neutral` 不刻意安慰或施压；`gentle` 表达柔和但不要求附和；`sharp` 表达直接、犀利，可针对实际回复中的含糊、矛盾或无依据断言追问，不捏造对方说过的话或经历。
-
-`minimal` 允许几个字、短语或不完整句子，如“嗯”“不确定”；`short` 通常一句，必要时补一句；`long` 可以几句话展开。长度是倾向，没有字数硬门槛。任何篇幅都允许本轮没有新增信息，不要求逐条回答、主动推进、反问、致谢或总结，也不为凑篇幅编造背景。
-
-```powershell
-python dialogue_generate.py validate --count 100
-python dialogue_generate.py plan --count 100 --output dialogues/behavior_trial
-python dialogue_generate.py generate --resume --output dialogues/behavior_trial
-```
-
-通过 `--user-behaviors 路径` 使用自定义文件，文件结构为 `schema_version: "2.0"` 和非空的 `presets` 数组。每个预设只包含以下三个字段，不接受额外字段：
-
-| 字段 | 允许值及含义 |
-| --- | --- |
-| `id` | 唯一、非空的预设名；`random` 为保留字 |
-| `tone` | `neutral` / `gentle` / `sharp`，表达语气 |
-| `response_length` | `minimal` / `short` / `long`，回应篇幅 |
+`user_behaviors.json` 使用 3.0 格式，每个预设只包含 id 和 tone：
 
 ```json
 {
-  "schema_version": "2.0",
+  "schema_version": "3.0",
   "presets": [
-    {"id": "sharp_minimal", "tone": "sharp", "response_length": "minimal"}
+    {"id": "neutral", "tone": "neutral"},
+    {"id": "gentle", "tone": "gentle"},
+    {"id": "sharp", "tone": "sharp"}
   ]
 }
 ```
 
-配额模式下，每种 tone/length 组合只能有一个预设，且必须覆盖本批非零 tone 配额与非零长度配额的全部组合；缺失或重复时生成前报错。例如自定义文件只包含 sharp_minimal，就应将配额中的 sharp 和 minimal 都设为 1。原有固定 ID / random 命令行覆盖方式仍可用于自定义文件。
+语气含义不变：neutral 平常直接，gentle 较柔和，sharp 犀利直接。默认按 sampling_config.json 的语气配额分配；每个有非零配额的语气必须有且仅有一个预设。可使用 `--user-behavior sharp` 固定语气，或 `--user-behavior random` 独立随机抽样语气。旧的 sharp_minimal 等预设 ID 不再用于新计划，自定义旧版行为文件需迁移为上述结构。
 
-行为分配使用由 `--seed` 派生的独立随机序列，修改语气或长度比例不会改变同批次的 User、Character、子主题和种子抽样。配额不增加模型调用，也不改变各模式的本地场景规则和结束条件。
+```powershell
+python dialogue_generate.py generate --count 20 --output dialogues/dynamic_user
+python dialogue_generate.py generate --count 5 --user-behavior sharp --output dialogues/sharp_dynamic
+```
 
-实际选中的预设连同 `schema_version` 保存为任务的 `user_behavior` 快照，并在阅读对话 JSON 的同名顶层字段展示。它只作为结构化数据传入 User 的系统上下文，不直接传给 Character，也不作为元数据或系统规则写入训练导出。
+模型仍只返回 `{"message":"公开发言","goal_completed":false}`，不新增长短标签或判断模型。长度选择和风格遵从由提示词引导，程序不强制句数或判定表达动机；实际效果需生成后抽检。
 
-`--resume` 直接使用日志中的行为和启动快照，不读取当前行为文件或重新抽样；修改或移走行为配置文件不会改变已有计划。续跑时不能指定 `--user-behavior`、`--user-behaviors` 或 `--conversation-mode`；`render`、`export` 同样不接受这些选项。追加样本可以另选语气、篇幅和启动方式。
+新计划保存 prompt_version 3.0。新建及追加不再保存 response_length 配置或长度配额。语气抽样使用独立随机序列，不影响身份和主题配对。
 
-新版 `USER_PROMPT` 已解释三种启动方式、语气与篇幅规则，以及无目标闲聊的结束含义。新任务保存 `prompt_version: "2.0"`。已有任务为 `1.0` 或没有版本时使用本次修改前保留的 `LEGACY_USER_PROMPT`，并沿用原行为快照；没有行为字段的旧任务不补加配置。旧版行为文件不能用于新建任务，需要改成上述 2.0 格式。`CHARACTER_PROMPT` 保持原内容。
+旧样本 `--resume` 不重新抽样，保留历史行为和配额快照用于追溯，但调用 User 时仅传行为的 tone，不传旧 response_length 或带长度的预设 ID；后续 User 发言采用当前逐轮自主长短 prompt。旧快照没有 tone 时使用 neutral。已保存的公开发言不重写，未完成轮次已有的 User 发言不重新生成。CharacterPrompt 不变，行为配置不传给 Character。
 
-这些规则由提示词约束，程序只校验配置和输出结构，不评判实际语气或字数，也不因不符合风格而自动重试。离线测试可以检查配置传递与恢复，实际效果需要真实生成后抽检。
+`--resume` 不接受行为或模式覆盖参数；`render`、`export` 同样不接受。修改 prompt 后续跑会影响后续回复，如需完整比较新旧机制，请新建输出目录。
+
+## User 三候选质检
+
+默认启用，Character 仍只生成一次。三个 User 候选分别独立请求，看到完全相同的当前历史；候选互不可见。质检员看当前 User 的 profile、语气、场景／目标、公开历史及三个候选，不看 Character 的私有 profile。生成器不把失败候选、评分或真人示例追加进真实历史，也不让质检员改写最终回复。
+
+五项分数均只能为 1、3、5，每项附简短依据：
+
+| 检查项 | 1 分 | 3 分 | 5 分 |
+| --- | --- | --- | --- |
+| 完整性与事实一致性 | 不完整、事实冲突、编造个人经历、人物混淆或结束标记明显矛盾 | 基本完整一致，但有影响理解的含混 | 完整且与设定、历史和公开结束意愿一致 |
+| 上下文相关性 | 忽略或误解前文、强行转题 | 有回应但重点偏移 | 准确回应重要内容，合理局部回答和自然转题也可 |
+| 无必要复述 | 大量概括／同义转述，删去不损失自己的意图 | 有少量可删的转述铺垫 | 直接表达自己；必要确认、质疑、纠正不扣分 |
+| 表达自然度 | 助手模板、刻意口语化、不合情境展开 | 基本自然，尚有套话 | 自然且详略有动机，不要求长篇或新增问题 |
+| 主体表达一致性 | 违背 User 语气／习惯，扮错身份 | 总体符合但局部生硬 | 符合当下身份语气，篇幅自主，不模仿对方长度 |
+
+不按字数或信息量加分，短回复也可高分。第一轮不臆造上一轮 Character 内容。评分仍可能有偏差，并不构成客观质量保证。
+
+本地过滤有任意 1 分项的候选，剩余候选按五项总分选择；同分依次比较无必要复述、自然度，仍同分取较小候选编号。质检展示顺序固定随机打乱，以减少位置偏向。候选都不合格时重新独立生成一批，默认最多两批；仍失败则停在当前 User 阶段，保留全部评分，不把低质量内容写入历史。此时单纯 --resume 不会重置预算，需要查看日志并调整实验后使用新的输出目录。网络／格式错误则沿用常规重试，恢复时复用已保存的有效候选和评分。
+
+`dialogue_config.json` 增加：
+
+```json
+"user_review": {"enabled": true, "candidate_count": 3, "max_batches": 2}
+```
+
+`candidate_count` 固定为 3，`max_batches` 可取 1～3。`enabled: false` 对新运行关闭选优。质检模型参数在 models.reviewer 中，默认 temperature 0.2、max_tokens 4000。
+
+`.env` 增加 `REVIEWER_API_BASE`、`REVIEWER_MODEL`、`REVIEWER_API_KEY`。三项全部留空时复用 User 的地址、模型和密钥，保留质检自己的温度与 token 配置；要使用独立模型时三项全部填写，不能只改其中一项而混用凭据。
+
+`reviewer_examples.json` 保存从真人语料核实过的四个接话片段及来源。示例只用于校准自然度，不是要求当前 User 复制的事实，也不默认每条都该得满分。程序首次执行样本时，将评分 prompt、示例及设置快照保存在日志的 `state.user_review_policy`，恢复不重新读取示例；修改示例只影响尚未建立快照的样本。第一版示例偏咨询与访谈，需关注泛化效果。
+
+日志 `state.user_reviews` 按轮次、批次保存候选全文与结束标记、展示顺序、五项分数和依据、选中编号及总分。API 用量计入所有候选、质检和失败尝试。进度事件仍带时间戳，不加入完整调用 profile。对话 JSON 只保存选中发言，完成时间和每样本两个文件的规则不变。最终结束依据仍为选中 User 的标记或最大轮数；没有恢复整段 quality／turn_check 裁判。
+
+启用本功能会改变生成配置，因此已开始的旧批次仍受配置一致性校验保护，不能在原批次中无提示地混用新旧机制。建议新建目录：
+
+```powershell
+python dialogue_generate.py generate --count 1 --output dialogues/user_review_trial
+```
+
+离线验证：`python -m unittest test_user_review test_user_length_autonomy -q`。这些测试验证选优、协议、候选隔离和恢复机制；复述是否实际减少仍需真实生成后人工抽检。
 
 ## 对话流程与模型配置
 
-流程为：读取配额 → 分配模式与素材、语气和长度 → 保存完整批次计划 → 本地场景 → User 发言 → Character 回复 → 本地结束判断；未结束则进入下一轮。批次和各轮 API 请求均串行执行。
+流程为：读取配额 → 分配模式与素材、语气 → 保存完整批次计划 → 本地场景 → User 生成三个候选 → 质检选优 → Character 回复一次 → 本地结束判断；未结束则进入下一轮。批次和各轮 API 请求均串行执行。
 
 User 接收自己的画像、启动配置、行为配置、场景、目标（可为 `null`）、角色公开姓名和公开历史。Character 仅接收扮演规则、自己的完整 profile 和双方公开对话历史（含 User 本轮最新发言）；不传入整个 `scene` 或 `private`，也不传入 User 画像、行为配置、启动配置、目标和模式。话题和情境只有在公开发言中被提及时才对 Character 可见。场景仍保存在阅读文件和日志中供人工检查，不作为 Character 的额外上下文；此规则同样适用于续跑和重新导出的训练文件。旧对话已经公开说出的内容仍保留在历史中。双方不会直接获得对方的完整画像。历史消息以当前发言者为视角转换：自己的发言标为 `assistant`，对方标为 `user`。
 
@@ -263,7 +285,7 @@ User 返回 `{"message":"公开发言","goal_completed":false}`，Character 返�
 1. User 返回 `goal_completed=true`，并完成本轮 Character 回复。
 2. 达到 `MAX_ROUNDS = 8` 个完整轮次。
 
-新版 User 提示词不要求最低轮数，`goal_completed` 表示 User 确实想结束本次交流，兼容没有具体目标的闲聊；简短回复本身不代表结束。代码仍只读取布尔标记和轮数，不做语义判断。重复、Character 告别或拒答不会单独触发停止，也没有最终质检。提示词位于主程序中的 `USER_PROMPT`、`LEGACY_USER_PROMPT` 和 `CHARACTER_PROMPT`。
+新版 User 提示词不要求最低轮数，`goal_completed` 表示 User 确实想结束本次交流，兼容没有具体目标的闲聊；简短回复本身不代表结束。代码仍只读取布尔标记和轮数，不做语义判断。重复、Character 告别或拒答不会单独触发停止，也没有最终质检。提示词位于主程序中的 `USER_PROMPT` 和 `CHARACTER_PROMPT`。
 
 `dialogue_config.json` 当前配置：
 
@@ -275,9 +297,9 @@ User 返回 `{"message":"公开发言","goal_completed":false}`，Character 返�
 | User | temperature 0.7，max_tokens 2400 |
 | Character | temperature 0.8，max_tokens 4000 |
 
-旧配置中的 `director`、`judge` 当前不使用，也不要求其环境变量。无失败重试时，N 轮对话共调用 API 2N 次。
+旧配置中的 `director`、`judge` 别名仍不使用。新增主体名为 `reviewer`。默认每轮 3 次 User 候选请求、1 次质检和1次 Character 请求，共 5 次；全部候选不合格而补生成一批时额外 4 次。网络和格式重试另计。关闭 user_review 后恢复每轮 2 次。
 
-接口需支持文本 Chat Completions。User 默认使用 JSON mode；服务不支持 `response_format` 时，可将对应 `json_mode` 设为 false，程序仍通过提示词和本地校验要求 JSON。Character 没有 JSON 校验器，因此不会因配置中的 `json_mode=true` 被强制返回 JSON。不自动适配 Responses API、工具调用或厂商专用推理参数。
+接口需支持文本 Chat Completions。User 与 reviewer 默认使用 JSON mode；服务不支持 `response_format` 时，可将对应 `json_mode` 设为 false，程序仍通过提示词和本地校验要求 JSON。Character 没有 JSON 校验器，因此不会因配置中的 `json_mode=true` 被强制返回 JSON。不自动适配 Responses API、工具调用或厂商专用推理参数。
 
 ## 续跑与追加
 
