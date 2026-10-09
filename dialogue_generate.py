@@ -20,7 +20,6 @@ import urllib.error
 import urllib.request
 
 from dotenv import load_dotenv
-import user_review
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_USERS = ROOT / "profiles/User_profile/open_source/User_profile.json"
@@ -601,19 +600,12 @@ class ChatClient:
         self.last_call = 0.0
         for name in ("user", "character"):
             self.endpoint(name)
-        if config.get("user_review", {}).get("enabled", False):
-            self.endpoint("reviewer")
 
     def endpoint(self, role):
         endpoint = self.config["models"][role]
         if isinstance(endpoint, str):
             endpoint = self.config["models"][endpoint]
         require(isinstance(endpoint, dict), f"Invalid model config: {role}")
-        if role == "reviewer" and not any(os.environ.get(endpoint[field], "")
-                for field in ("base_url_env", "model_env", "api_key_env")):
-            # An entirely unset reviewer endpoint reuses User credentials, not its sampling settings.
-            _, base, model, key = self.endpoint("user")
-            return endpoint, base, model, key
         base = os.environ.get(endpoint["base_url_env"], "").rstrip("/")
         model = os.environ.get(endpoint["model_env"], "")
         key = os.environ.get(endpoint["api_key_env"], "")
@@ -695,10 +687,7 @@ class ChatClient:
             if not retry or attempt == self.config["retries"]:
                 break
             if validator and format_failure:
-                if role == "reviewer":
-                    # Retain the rubric/candidates, not a growing history of malformed answers.
-                    request_messages = list(messages)
-                elif isinstance(content, str) and content.strip():
+                if isinstance(content, str) and content.strip():
                     request_messages.append({"role": "assistant", "content": content})
                 request_messages.append({"role": "user", "content":
                     "上一条输出没有通过格式检查：" + last_error + "。请重新输出同一次请求的完整结果，"
@@ -896,8 +885,7 @@ def finish_round(job, progress):
         job.update(stop_reasons=reasons, stop_reason=reasons[0], phase="done",
                    status="completed", rounds=round_number)
         job.setdefault("dialogue_completed_at", timestamp())
-        review_note = "已做User候选质检；未做整段质检" if job.get("user_review_policy") else "未做自动质检"
-        progress("对话结束", f"共 {round_number} 轮 | 原因={reasons[0]} | {review_note}")
+        progress("对话结束", f"共 {round_number} 轮 | 原因={reasons[0]}")
     else:
         job.pop("dialogue_completed_at", None)
         job.pop("stop_reason", None)
@@ -930,12 +918,7 @@ def run_job(job, client, save, progress=None):
             progress("对话启动", f"模式={mode} | 主题={job['topic']['name'] if job['topic'] else '无预设主题'}")
             job["phase"] = "user"
         elif phase == "user":
-            if job.get("user_review_policy"):
-                context = json.loads(actor_system(job, "user")[len(user_prompt(job)) + 1:])
-                result = user_review.select_user(job, client, save, progress,
-                    actor_messages(job, "user"), context, validate_user)
-            else:
-                result = client.call("user", actor_messages(job, "user"), validate_user)
+            result = client.call("user", actor_messages(job, "user"), validate_user)
             validate_user(result)
             job["messages"].append({"speaker": "user", "content": result["message"]})
             job["pending_goal"] = result["goal_completed"]
@@ -993,10 +976,6 @@ def export_jobs(output):
 
 
 def check_config(config):
-    if "user_review" in config:
-        user_review.check_settings(config["user_review"])
-        if config["user_review"]["enabled"]:
-            require(isinstance(config.get("models", {}).get("reviewer"), dict), "Missing reviewer model configuration")
     for key in ("timeout_seconds", "min_interval_seconds"):
         require(type(config.get(key)) in (int, float) and config[key] >= 0, f"Invalid {key}")
     require(config["timeout_seconds"] > 0, "Timeout must be positive")
@@ -1142,16 +1121,11 @@ def main():
             try:
                 client = ChatClient(config, audit, progress.emit)
                 roles = ["user", "character"]
-                if config.get("user_review", {}).get("enabled", False):
-                    roles.append("reviewer")
                 resolved = {role: {"model": client.endpoint(role)[2],
                                    "base_url_sha256": digest(client.endpoint(role)[1])}
                             for role in roles}
                 check_resume_config(job, config, resolved)
                 job["generation_config"] = config
-                if config.get("user_review", {}).get("enabled", False) and "user_review_policy" not in job:
-                    job["user_review_policy"] = user_review.make_policy(config["user_review"])
-                    save()
                 run_job(job, client, save, progress.emit)
             except (RuntimeError, ValueError) as error:
                 job.update(status="error", error=str(error))

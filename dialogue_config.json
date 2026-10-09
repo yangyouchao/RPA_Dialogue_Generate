@@ -20,19 +20,6 @@
       "json_mode": true
     },
     "director": "user",
-    "judge": "character",
-    "reviewer": {
-      "base_url_env": "REVIEWER_API_BASE",
-      "model_env": "REVIEWER_MODEL",
-      "api_key_env": "REVIEWER_API_KEY",
-      "temperature": 0.2,
-      "max_tokens": 6000,
-      "json_mode": true
-    }
-  },
-  "user_review": {
-    "enabled": false,
-    "candidate_count": 3,
-    "max_batches": 2
+    "judge": "character"
   }
 }

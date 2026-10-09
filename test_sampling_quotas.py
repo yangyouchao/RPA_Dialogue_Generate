@@ -184,12 +184,6 @@ class QuotaTests(unittest.TestCase):
             self.assertNotIn('"sampling_batch"', messages[0]["content"])
             if role == "character" and calls[role] == 1:
                 raise RuntimeError("interrupted")
-            if role == "reviewer":
-                result = {"evaluations": [{"candidate_id": f"c{i}", "scores": {
-                    key: {"score": 5, "reason": "符合当前交流"} for key in dg.user_review.CRITERIA}}
-                    for i in range(1, 4)]}
-                validator(result)
-                return result
             if role == "user":
                 result = {"message": f"结束 {calls[role]}", "goal_completed": True}
                 validator(result)
@@ -212,7 +206,7 @@ class QuotaTests(unittest.TestCase):
             self.assertEqual(job["status"], "completed")
             for field in ("sampling_batch", "conversation_start", "user_behavior"):
                 self.assertEqual(job[field], original[field])
-        self.assertEqual(calls, {"user": 30, "reviewer": 10, "character": 11})
+        self.assertEqual(calls, {"user": 10, "character": 11})
         training = (output / "training.jsonl").read_text(encoding="utf-8")
         self.assertNotIn('"sampling_batch"', training)
         self.assertNotIn('"source_config"', training)

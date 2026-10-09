@@ -1,6 +1,6 @@
 # 角色多轮对话生成
 
-使用兼容 Chat Completions 的模型分别模拟 User 和 Character，结合画像、启动方式与语气配置逐轮生成对话；User 每轮自主决定篇幅，并默认由质检员从三个候选中选优。支持具体场景交流、围绕话题闲聊和无预设话题闲聊，以及抽样计划、断点续跑、追加样本和训练数据导出。
+使用兼容 Chat Completions 的模型分别模拟 User 和 Character，结合画像、启动方式与语气配置逐轮生成对话；User 每轮自主决定篇幅。支持具体场景交流、围绕话题闲聊和无预设话题闲聊，以及抽样计划、断点续跑、追加样本和训练数据导出。
 
 当前只有 User 和 Character 调用模型；场景在本地构建，不调用导演、逐轮裁判或质量检查模型。生成完成的状态为 `completed`，不代表质量审核通过。
 
@@ -234,49 +234,9 @@ python dialogue_generate.py generate --count 5 --user-behavior sharp --output di
 
 `--resume` 不接受行为或模式覆盖参数；`render`、`export` 同样不接受。修改 prompt 后续跑会影响后续回复，如需完整比较新旧机制，请新建输出目录。
 
-## User 三候选质检
-
-默认启用，Character 仍只生成一次。三个 User 候选分别独立请求，看到完全相同的当前历史；候选互不可见。质检员看当前 User 的 profile、语气、场景／目标、公开历史及三个候选，不看 Character 的私有 profile。生成器不把失败候选、评分或真人示例追加进真实历史，也不让质检员改写最终回复。
-
-五项分数均只能为 1、3、5，每项附简短依据：
-
-| 检查项 | 1 分 | 3 分 | 5 分 |
-| --- | --- | --- | --- |
-| 完整性与事实一致性 | 不完整、事实冲突、编造个人经历、人物混淆或结束标记明显矛盾 | 基本完整一致，但有影响理解的含混 | 完整且与设定、历史和公开结束意愿一致 |
-| 上下文相关性 | 忽略或误解前文、强行转题 | 有回应但重点偏移 | 准确回应重要内容，合理局部回答和自然转题也可 |
-| 无必要复述 | 大量概括／同义转述，删去不损失自己的意图 | 有少量可删的转述铺垫 | 直接表达自己；必要确认、质疑、纠正不扣分 |
-| 表达自然度 | 助手模板、刻意口语化、不合情境展开 | 基本自然，尚有套话 | 自然且详略有动机，不要求长篇或新增问题 |
-| 主体表达一致性 | 违背 User 语气／习惯，扮错身份 | 总体符合但局部生硬 | 符合当下身份语气，篇幅自主，不模仿对方长度 |
-
-不按字数或信息量加分，短回复也可高分。第一轮不臆造上一轮 Character 内容。评分仍可能有偏差，并不构成客观质量保证。
-
-本地过滤有任意 1 分项的候选，剩余候选按五项总分选择；同分依次比较无必要复述、自然度，仍同分取较小候选编号。质检展示顺序固定随机打乱，以减少位置偏向。候选都不合格时重新独立生成一批，默认最多两批；仍失败则停在当前 User 阶段，保留全部评分，不把低质量内容写入历史。此时单纯 --resume 不会重置预算，需要查看日志并调整实验后使用新的输出目录。网络／格式错误则沿用常规重试，恢复时复用已保存的有效候选和评分。
-
-`dialogue_config.json` 增加：
-
-```json
-"user_review": {"enabled": true, "candidate_count": 3, "max_batches": 2}
-```
-
-`candidate_count` 固定为 3，`max_batches` 可取 1～3。`enabled: false` 对新运行关闭选优。质检模型参数在 models.reviewer 中，默认 temperature 0.2、max_tokens 4000。
-
-`.env` 增加 `REVIEWER_API_BASE`、`REVIEWER_MODEL`、`REVIEWER_API_KEY`。三项全部留空时复用 User 的地址、模型和密钥，保留质检自己的温度与 token 配置；要使用独立模型时三项全部填写，不能只改其中一项而混用凭据。
-
-`reviewer_examples.json` 保存从真人语料核实过的四个接话片段及来源。示例只用于校准自然度，不是要求当前 User 复制的事实，也不默认每条都该得满分。程序首次执行样本时，将评分 prompt、示例及设置快照保存在日志的 `state.user_review_policy`，恢复不重新读取示例；修改示例只影响尚未建立快照的样本。第一版示例偏咨询与访谈，需关注泛化效果。
-
-日志 `state.user_reviews` 按轮次、批次保存候选全文与结束标记、展示顺序、五项分数和依据、选中编号及总分。API 用量计入所有候选、质检和失败尝试。进度事件仍带时间戳，不加入完整调用 profile。对话 JSON 只保存选中发言，完成时间和每样本两个文件的规则不变。最终结束依据仍为选中 User 的标记或最大轮数；没有恢复整段 quality／turn_check 裁判。
-
-启用本功能会改变生成配置，因此已开始的旧批次仍受配置一致性校验保护，不能在原批次中无提示地混用新旧机制。建议新建目录：
-
-```powershell
-python dialogue_generate.py generate --count 1 --output dialogues/user_review_trial
-```
-
-离线验证：`python -m unittest test_user_review test_user_length_autonomy -q`。这些测试验证选优、协议、候选隔离和恢复机制；复述是否实际减少仍需真实生成后人工抽检。
-
 ## 对话流程与模型配置
 
-流程为：读取配额 → 分配模式与素材、语气 → 保存完整批次计划 → 本地场景 → User 生成三个候选 → 质检选优 → Character 回复一次 → 本地结束判断；未结束则进入下一轮。批次和各轮 API 请求均串行执行。
+流程为：读取配额 → 分配模式与素材、语气 → 保存完整批次计划 → 本地场景 → User 发言 → Character 回复 → 本地结束判断；未结束则进入下一轮。批次和各轮 API 请求均串行执行。
 
 User 接收自己的画像、启动配置、行为配置、场景、目标（可为 `null`）、角色公开姓名和公开历史。Character 仅接收扮演规则、自己的完整 profile 和双方公开对话历史（含 User 本轮最新发言）；不传入整个 `scene` 或 `private`，也不传入 User 画像、行为配置、启动配置、目标和模式。话题和情境只有在公开发言中被提及时才对 Character 可见。场景仍保存在阅读文件和日志中供人工检查，不作为 Character 的额外上下文；此规则同样适用于续跑和重新导出的训练文件。旧对话已经公开说出的内容仍保留在历史中。双方不会直接获得对方的完整画像。历史消息以当前发言者为视角转换：自己的发言标为 `assistant`，对方标为 `user`。
 
@@ -297,9 +257,9 @@ User 返回 `{"message":"公开发言","goal_completed":false}`，Character 返�
 | User | temperature 0.7，max_tokens 2400 |
 | Character | temperature 0.8，max_tokens 4000 |
 
-旧配置中的 `director`、`judge` 别名仍不使用。新增主体名为 `reviewer`。默认每轮 3 次 User 候选请求、1 次质检和1次 Character 请求，共 5 次；全部候选不合格而补生成一批时额外 4 次。网络和格式重试另计。关闭 user_review 后恢复每轮 2 次。
+旧配置中的 `director`、`judge` 别名仍不使用。每轮各请求一次 User 和 Character，共 2 次。网络和格式重试另计。
 
-接口需支持文本 Chat Completions。User 与 reviewer 默认使用 JSON mode；服务不支持 `response_format` 时，可将对应 `json_mode` 设为 false，程序仍通过提示词和本地校验要求 JSON。Character 没有 JSON 校验器，因此不会因配置中的 `json_mode=true` 被强制返回 JSON。不自动适配 Responses API、工具调用或厂商专用推理参数。
+接口需支持文本 Chat Completions。User 默认使用 JSON mode；服务不支持 `response_format` 时，可将对应 `json_mode` 设为 false，程序仍通过提示词和本地校验要求 JSON。Character 没有 JSON 校验器，因此不会因配置中的 `json_mode=true` 被强制返回 JSON。不自动适配 Responses API、工具调用或厂商专用推理参数。
 
 ## 续跑与追加
 
