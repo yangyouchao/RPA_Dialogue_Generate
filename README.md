@@ -80,7 +80,7 @@ python dialogue_generate.py generate --resume --output dialogues/batch_001
 | --- | --- |
 | `dialogue_generate.py` | 主程序、提示词、抽样与对话状态管理 |
 | `dialogue_config.json` | 请求参数和环境变量名称，不存放密钥 |
-| `sampling_config.json` | 每次新建或追加的 mode、tone、length_condition 配额比例 |
+| `sampling_config.json` | 每次新建或追加的 mode、length_condition 配额比例 |
 | `user_behaviors.json` | User 的四个长度实验条件及 content_mode 配置 |
 | `.env.example` | API 环境变量模板 |
 | `profiles/Character_profile/*.json` | 角色设定 |
@@ -97,13 +97,12 @@ python dialogue_generate.py generate --resume --output dialogues/batch_001
 
 ## 批次配额配置
 
-新实验保留 mode、tone 配额，将原 response_length 配额改成 length_condition 配额。直接编辑 sampling_config.json（schema_version=2.0）：
+实验按 mode 和 length_condition 分配配额，User 的 tone 设置已关闭，语气根据画像和实际对话自然形成。直接编辑 sampling_config.json（schema_version=2.0）：
 
 ```json
 {
   "schema_version": "2.0",
   "conversation_mode_distribution": {"task": 0.4, "topic_chat": 0.3, "open_chat": 0.3},
-  "tone_distribution": {"neutral": 1.0, "gentle": 0.0, "sharp": 0.0},
   "length_condition_distribution": {
     "minimal_minimal": 0.25, "long_long": 0.25,
     "minimal_long": 0.25, "long_minimal": 0.25
@@ -113,7 +112,7 @@ python dialogue_generate.py generate --resume --output dialogues/batch_001
 
 每组比例总和为 1。整数配额按最大余数分配，再按模式、语气、条件平衡组合。默认语气固定 neutral，以减少实验干扰。100 段中四个条件各 25 段；配额约束新建计划，不补偿已失败或提前结束的对话。续跑使用保存的配置快照。
 
---conversation-mode 覆盖 mode；--user-behavior ID 覆盖 tone 和 length_condition；random 随机抽取完整预设，不保证语气和条件配额。修改这些比例不改变同 seed、同 mode 配额下的人物与主题抽样。
+--conversation-mode 覆盖 mode；--user-behavior ID 覆盖 length_condition；random 随机抽取完整预设，不保证条件配额。修改长度比例不改变同 seed、同 mode 配额下的人物与主题抽样。
 
 混合条件配额不保证四组素材逐项匹配。建议分别用相同 seed、count、素材和 mode 配置运行四个固定条件，详见 [完整实验指南](docs/length_experiment.md)。
 
@@ -159,11 +158,11 @@ python dialogue_generate.py generate --resume --output dialogues/length_natural/
 
 三个模式的 `public.relationship` 均为“初次交流”，`public.facts` 为空列表，`user_private`、`character_private` 为“无”。启动配置保存为 `conversation_start`，包含 `mode`、`topic`、`goal`；续跑沿用快照。
 
-例如，在配置文件中将 open_chat、sharp、minimal 各设为 1，对应组的其他值设为 0，再保存计划：
+例如，在配置文件中将 open_chat 和 minimal_minimal 各设为 1，对应组的其他值设为 0，再保存计划：
 
 ```powershell
-python dialogue_generate.py plan --count 5 --output dialogues/open_sharp
-python dialogue_generate.py generate --resume --output dialogues/open_sharp
+python dialogue_generate.py plan --count 5 --output dialogues/open_minimal
+python dialogue_generate.py generate --resume --output dialogues/open_minimal
 ```
 
 围绕抽中话题闲聊时，将配置中的 topic_chat 设为 1，task 和 open_chat 设为 0，再运行：
@@ -183,13 +182,13 @@ python dialogue_generate.py generate --count 5 --users profiles/User_profile/gen
 
 画像提供事实，conversation_start 决定启动方式，user_behavior 决定语气、长度条件和内容生成方法。新任务的 User 画像排除独立 communication_style 字段，不改动源画像。
 
-user_behaviors.json 使用 schema_version=3.0，每个预设包含 id、tone、length_condition、content_mode：
+user_behaviors.json 使用 schema_version=3.0，每个预设包含 id、length_condition、content_mode，不含 tone：
 
 ```json
 {
   "schema_version": "3.0",
   "presets": [
-    {"id": "minimal_long", "tone": "neutral", "length_condition": "minimal_long", "content_mode": "natural"}
+    {"id": "minimal_long", "length_condition": "minimal_long", "content_mode": "natural"}
   ]
 }
 ```
@@ -207,7 +206,7 @@ content_mode 可选 natural 或 semantic_aligned。natural 自然生成本轮发
 
 User prompt 已更新，程序只向 User 传入当前轮长度要求，不让它自行选择，也不把完整条件计划交给它。Character 不看到长度要求、实验标签或未选草稿。标签和统计保存在日志，不加入训练消息。
 
-原 sharp_minimal、gentle_long 等 ID 不再适用于新任务。旧任务保留行为快照和 8 轮上限，使用 prompts/user_legacy_v2.txt 中保存的修改前 User prompt。新任务保存 20 轮上限、第 10 轮后切换和 prompt_version=3.0。详见 [完整实验指南](docs/length_experiment.md)。
+原 sharp_minimal、gentle_long 等 ID 不再适用于新任务。旧任务保留行为快照、固定篇幅和原轮数上限，改用代码内置的 User prompt；快照中的 tone 不传入模型。新任务保存 20 轮上限、第 10 轮后切换和 prompt_version=3.0。所有提示词均在主程序中，无需 prompts 文件或目录。详见 [完整实验指南](docs/length_experiment.md)。
 
 ## 对话流程与模型配置
 
@@ -220,7 +219,7 @@ natural 模式 User 返回 `{"message":"公开发言","goal_completed":false}`�
 1. User 返回 `goal_completed=true`，并完成本轮 Character 回复。
 2. 新任务达到 `MAX_ROUNDS = 20` 个完整轮次（旧任务无上限快照时仍按 8 轮）。
 
-新版 User 提示词不要求最低轮数，`goal_completed` 表示 User 确实想结束本次交流，兼容没有具体目标的闲聊；简短回复本身不代表结束。代码仍只读取布尔标记和轮数，不做语义判断。重复、Character 告别或拒答不会单独触发停止，也没有最终质检。新提示词位于主程序中的 `USER_PROMPT` 和 `CHARACTER_PROMPT`；`LEGACY_USER_PROMPT` 从 prompts/user_legacy_v2.txt 加载。
+新版 User 提示词不要求最低轮数，`goal_completed` 表示 User 确实想结束本次交流，兼容没有具体目标的闲聊；简短回复本身不代表结束。代码仍只读取布尔标记和轮数，不做语义判断。重复、Character 告别或拒答不会单独触发停止，也没有最终质检。提示词位于主程序中的 `USER_PROMPT` 和 `CHARACTER_PROMPT`；`LEGACY_USER_PROMPT` 复用内置的 `USER_PROMPT`。
 
 `dialogue_config.json` 当前配置：
 
@@ -291,7 +290,7 @@ python dialogue_generate.py export --output dialogues/batch_001
 python length_analysis.py --output dialogues/length_natural
 ```
 
-递归汇总为 length_analysis.json，按 Character、mode、tone、content_mode、长度条件分组，完整 20 轮样本进入组均值，提前结束样本单独保留。报告提供 MM/LL 基线与 ML/LM 的半段变化比较。
+递归汇总为 length_analysis.json，按 Character、mode、content_mode、长度条件分组，完整 20 轮样本进入组均值，提前结束样本单独保留。报告提供 MM/LL 基线与 ML/LM 的半段变化比较。
 
 Character_t 与 User_t 是同轮关联；Character_t+1 与 User_t 是下一轮关联。两者使用实际公开非空白字符数计算 Pearson r，不使用含 JSON/候选文本的 User API 用量。API completion_tokens 可能包含推理 token，缺失时为 null，报告同时提供 token 覆盖数量。详见 [统计定义及局限](docs/length_experiment.md)。
 

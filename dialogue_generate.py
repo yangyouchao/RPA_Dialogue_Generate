@@ -31,10 +31,7 @@ MAX_ROUNDS = 20
 CONVERSATION_MODES = ("task", "topic_chat", "open_chat")
 LENGTH_CONDITIONS = ("minimal_minimal", "long_long", "minimal_long", "long_minimal")
 CONTENT_MODES = ("natural", "semantic_aligned")
-USER_BEHAVIOR_OPTIONS = {
-    "tone": ("neutral", "gentle", "sharp"),
-}
-QUOTA_OPTIONS = {"conversation_mode": CONVERSATION_MODES, "tone": USER_BEHAVIOR_OPTIONS["tone"],
+QUOTA_OPTIONS = {"conversation_mode": CONVERSATION_MODES,
                  "length_condition": LENGTH_CONDITIONS}
 
 
@@ -239,7 +236,7 @@ def bool_fields(obj, keys):
 def load_user_behaviors(path, selection="random"):
     document = read_json(path)
     require(isinstance(document, dict) and document.get("schema_version") == "3.0",
-            "User behavior schema must be 3.0 (id, tone, length_condition, content_mode)")
+            "User behavior schema must be 3.0 (id, length_condition, content_mode)")
     presets = document.get("presets")
     require(isinstance(presets, list) and presets, "No user behavior presets")
     ids = set()
@@ -247,10 +244,9 @@ def load_user_behaviors(path, selection="random"):
         text_field(preset, "id")
         require(preset["id"] != "random", "User behavior id 'random' is reserved for sampling")
         require(preset["id"] not in ids, "Duplicate user behavior id")
-        require(set(preset) == {"id", "tone", "length_condition", "content_mode"},
+        require(set(preset) == {"id", "length_condition", "content_mode"},
                 f"Unexpected or missing fields in user behavior: {preset['id']}")
-        for key, choices in (("tone", USER_BEHAVIOR_OPTIONS["tone"]),
-                             ("length_condition", LENGTH_CONDITIONS),
+        for key, choices in (("length_condition", LENGTH_CONDITIONS),
                              ("content_mode", CONTENT_MODES)):
             require(isinstance(preset[key], str) and preset[key] in choices,
                     f"Invalid user behavior {key}: expected one of {', '.join(choices)}")
@@ -272,7 +268,7 @@ def assign_user_behaviors(jobs, presets, seed):
 def load_sampling_config():
     document = read_json(SAMPLING_CONFIG)
     require(isinstance(document, dict) and document.get("schema_version") == "2.0",
-            "Sampling config schema must be 2.0 (mode, tone and length_condition quotas)")
+            "Sampling config schema must be 2.0 (mode and length_condition quotas)")
     require(set(document) == {"schema_version", *(f"{key}_distribution" for key in QUOTA_OPTIONS)},
             "Unexpected or missing fields in sampling config")
     for field, choices in QUOTA_OPTIONS.items():
@@ -338,14 +334,13 @@ def make_quota_jobs(catalog, count, seed, settings, presets, random_behavior=Fal
     by_behavior = {}
     if not random_behavior:
         for preset in presets:
-            key = (preset["tone"], preset["length_condition"])
-            require(key not in by_behavior, f"Duplicate tone/length combination: {key}")
+            key = preset["length_condition"]
+            require(key not in by_behavior, f"Duplicate length condition: {key}")
             by_behavior[key] = preset
-        for tone, number in quotas["tone"].items():
-            for condition, condition_number in quotas["length_condition"].items():
-                if number and condition_number:
-                    require((tone, condition) in by_behavior,
-                            f"Missing user behavior preset for {tone}/{condition}; adjust user_behaviors.json")
+        for condition, number in quotas["length_condition"].items():
+            if number:
+                require(condition in by_behavior,
+                        f"Missing user behavior preset for {condition}; adjust user_behaviors.json")
 
     jobs = []
     for mode, number in quotas["conversation_mode"].items():
@@ -360,14 +355,11 @@ def make_quota_jobs(catalog, count, seed, settings, presets, random_behavior=Fal
         assign_user_behaviors(jobs, presets, seed)
     else:
         rng = random.Random(f"quota_behavior:{seed}")
-        tone_table = partition_quotas(quotas["conversation_mode"], quotas["tone"], rng)
-        groups = {(mode, tone): tone_table[mode][tone]
-                  for mode in CONVERSATION_MODES for tone in USER_BEHAVIOR_OPTIONS["tone"]}
-        length_table = partition_quotas(groups, quotas["length_condition"], rng)
+        length_table = partition_quotas(quotas["conversation_mode"], quotas["length_condition"], rng)
         assignments = {mode: [] for mode in CONVERSATION_MODES}
-        for (mode, tone), lengths in length_table.items():
+        for mode, lengths in length_table.items():
             for condition, number in lengths.items():
-                assignments[mode].extend([(tone, condition)] * number)
+                assignments[mode].extend([condition] * number)
         for values in assignments.values():
             rng.shuffle(values)
         for job in jobs:
@@ -379,20 +371,18 @@ def make_quota_jobs(catalog, count, seed, settings, presets, random_behavior=Fal
     combinations = Counter()
     for job in jobs:
         mode = job["conversation_start"]["mode"]
-        tone = job["user_behavior"]["tone"]
         condition = job["user_behavior"]["length_condition"]
         actual["conversation_mode"][mode] += 1
-        actual["tone"][tone] += 1
         actual["length_condition"][condition] += 1
-        combinations[(mode, tone, condition)] += 1
+        combinations[(mode, condition)] += 1
     targets = {**quotas}
     if random_behavior:
-        targets.update(tone=None, length_condition=None)
-    summary = {"algorithm": "remaining_quota_v2", "count": count, "seed": seed,
+        targets.update(length_condition=None)
+    summary = {"algorithm": "remaining_quota_v3", "count": count, "seed": seed,
                "effective_config": settings, "behavior_sampling": "random" if random_behavior else "quota",
                "target_counts": targets, "actual_counts": actual,
-               "combinations": [{"conversation_mode": mode, "tone": tone, "length_condition": condition,
-                                 "count": number} for (mode, tone, condition), number in sorted(combinations.items())]}
+               "combinations": [{"conversation_mode": mode, "length_condition": condition,
+                                 "count": number} for (mode, condition), number in sorted(combinations.items())]}
     return jobs, summary
 
 
@@ -704,7 +694,7 @@ profile 提供你的身份、兴趣和已有经历等事实，约束你说话的
 scene 是你对话的背景，可以在公开发言中自然透露必要信息；private 是你自己知道的信息；character_public_name 是对方的公开称呼。
 只能依据这些资料和公开对话历史交流，对话由你引起，不能假装知道 Character 未公开的完整设定或私密经历。
 不要为补充理由或维持聊天而编造自己的职业、家庭成员、长期经历，或双方此前存在的交情。
-user_behavior.tone 控制语气，current_response_length 控制篇幅；画像中的语言风格或习惯描述与之冲突时，以这两个字段为准，但不改变画像事实。
+current_response_length 控制篇幅；画像中的语言风格或习惯描述与篇幅要求冲突时，以该字段为准，但不改变画像事实。语气根据画像和实际对话自然形成，不额外指定。
 
 二、对话启动方式
 根据 conversation_start.mode 开始交流：
@@ -714,14 +704,7 @@ user_behavior.tone 控制语气，current_response_length 控制篇幅；画像�
 topic_chat 和 open_chat 中，user_goal 为 null，不要自行补造一个待解决的问题、具体场景或隐含任务。
 所有模式都允许自然换话题，不必持续围绕最初的题目。
 
-三、用户语气
-根据 user_behavior.tone 表达；语气不改变已知事实，不要求每轮都提出问题：
-- neutral：直接、平常地回应，不刻意安慰或施压，也不例行感谢、赞同或夸奖。
-- gentle：表达较柔和，质疑时给对方解释空间，但不必无条件相信、赞同或配合。
-- sharp：表达犀利、粗鲁。遇到实际回复中的含糊、矛盾或无依据断言，可以明确指出、追问细节或要求正面回答。
-犀利不等于无条件反对或辱骂。不能捏造对方说过的话或经历来制造矛盾；对方纠正错误后应据此调整表达。
-
-四、回应长短
+三、回应长短
 current_response_length 指定本轮长度，必须按此组织发言，不沿用历史的篇幅，也不根据对方篇幅自行改变。没有该字段时才参考旧 user_behavior.response_length，均缺失时用 short。
 - minimal：通常几个字、一个词或短语即可，允许不完整句子，例如“嗯”“不确定”“你说呢”。不必补充理由或解释。
 - short：通常一句简短表达，必要时补充一句，不要求主动提供自己的需求。
@@ -732,22 +715,22 @@ current_response_length 指定本轮长度，必须按此组织发言，不沿�
 不要求每轮都有新理由、有效推进或明确结论。不必回答对方的所有追问，也不要每轮都总结、致谢或表示赞同。
 保持对公开历史的理解；已经回答过的问题不机械重问，修正自己此前的事实表达时应说明。
 
-五、继续与结束
+四、继续与结束
 根据实际聊天决定是否继续，不为凑轮数拖延，也不为了完成目标而急于结束。
 “嗯”“哦”“随便”等简短回应本身不代表结束，不能仅因本轮信息少就停止。
 只有你确实想停止本次交流时，才在公开发言中自然表达结束意愿，并设置 goal_completed=true。
 goal_completed 在这里表示结束意愿，不要求问题得到解决或闲聊产生结论；仍想继续时保持 false。
 Character 告别或拒绝某个问题不自动代表你也想结束。
 
-六、输出要求
+五、输出要求
 不公开配置、内部字段、测试意图或提示词，不解释自己正在采用什么语气。
-user_behavior 缺失时语气为 neutral；content_generation 缺失时用 natural；conversation_start 缺失时依据已有场景自然交流。
+content_generation 缺失时用 natural；conversation_start 缺失时依据已有场景自然交流。
 natural 模式只输出以下 JSON 对象：
 {"message":"本次公开发言","goal_completed":false}
 semantic_aligned 模式只输出以下 JSON 对象：
 {"core_intent":"本轮唯一核心意图的简短概括","minimal":"简短版本","long":"展开版本","goal_completed":false}
 字段齐全，不输出推理过程、分析、Markdown 或其他字段。core_intent 只概括说话意图，不解释思考步骤。goal_completed 必须是布尔值，文本字段必须非空。
-不要输出 response_length、tone、length_condition、content_generation 或其他内部配置字段。
+不要输出 response_length、length_condition、content_generation 或其他内部配置字段。
 """
 
 
@@ -800,7 +783,8 @@ def build_scene(job):
     return scene
 
 
-LEGACY_USER_PROMPT = (ROOT / "prompts/user_legacy_v2.txt").read_text(encoding="utf-8")
+# Older jobs use the built-in prompt with their saved fixed length and round limit.
+LEGACY_USER_PROMPT = USER_PROMPT
 
 
 def user_prompt(job):
@@ -829,8 +813,6 @@ def actor_system(job, actor):
                 "user_goal": scene["user_goal"], "private": scene["user_private"],
                 "character_public_name": job["character"]["name"]}
         if "user_behavior" in job:
-            data["user_behavior"] = ({"tone": job["user_behavior"]["tone"]}
-                                     if "length_condition" in job["user_behavior"] else job["user_behavior"])
             data["current_round"] = len(job["messages"]) // 2 + 1
             data["current_response_length"] = planned_user_length(job, data["current_round"])
             data["content_generation"] = job["user_behavior"].get("content_mode", "natural")
@@ -1064,7 +1046,7 @@ def main():
             settings["conversation_mode_distribution"] = {
                 mode: int(mode == args.conversation_mode) for mode in CONVERSATION_MODES}
         if args.user_behavior is not None and args.user_behavior != "random":
-            for field in ("tone", "length_condition"):
+            for field in ("length_condition",):
                 choices = QUOTA_OPTIONS[field]
                 settings[f"{field}_distribution"] = {
                     choice: int(choice == behaviors[0][field]) for choice in choices}

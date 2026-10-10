@@ -858,7 +858,7 @@ class UserBehaviorTests(unittest.TestCase):
             document["presets"][0][key] = value
             invalid.append(document)
         missing = copy.deepcopy(valid)
-        missing["presets"][0].pop("tone")
+        missing["presets"][0].pop("length_condition")
         invalid.append(missing)
         duplicate = copy.deepcopy(valid)
         duplicate["presets"].append(copy.deepcopy(duplicate["presets"][0]))
@@ -906,7 +906,7 @@ class UserBehaviorTests(unittest.TestCase):
         after_user = dg.actor_system(job, "user")
         self.assertTrue(after_user.startswith(dg.USER_PROMPT + "\n"))
         data = json.loads(after_user[len(dg.USER_PROMPT) + 1:])
-        self.assertEqual(data.pop("user_behavior"), {"tone": job["user_behavior"]["tone"]})
+        self.assertNotIn("user_behavior", data)
         self.assertEqual(data.pop("current_response_length"), "minimal")
         self.assertEqual(data.pop("content_generation"), "natural")
         data.pop("current_round")
@@ -956,7 +956,7 @@ class UserBehaviorTests(unittest.TestCase):
                 system = dg.USER_PROMPT if role == "user" else dg.CHARACTER_PROMPT
                 data = json.loads(messages[0]["content"][len(system) + 1:])
                 if role == "user":
-                    self.assertEqual(data["user_behavior"], {"tone": expected["tone"]})
+                    self.assertNotIn("user_behavior", data)
                 else:
                     self.assertNotIn("user_behavior", data)
                     self.assertNotIn("custom_probe", json.dumps(messages))
@@ -1029,7 +1029,8 @@ class UserBehaviorTests(unittest.TestCase):
             system = dg.actor_system(restored, "user")
             self.assertTrue(system.startswith(dg.LEGACY_USER_PROMPT + "\n"))
             data = json.loads(system[len(dg.LEGACY_USER_PROMPT) + 1:])
-            self.assertEqual(data["user_behavior"], expected)
+            self.assertNotIn("user_behavior", data)
+            self.assertEqual(data["current_response_length"], expected["response_length"])
             self.assertEqual(restored["user_behavior"], expected)
             self.assertNotIn("conversation_start", restored)
             self.assertEqual(restored["status"], "completed")

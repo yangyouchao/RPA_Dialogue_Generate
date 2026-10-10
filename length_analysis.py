@@ -74,7 +74,7 @@ def report_jobs(jobs):
     for job in jobs:
         behavior = job.get("user_behavior", {})
         key = (job.get("character", {}).get("id"), job.get("conversation_start", {}).get("mode"),
-               behavior.get("tone"), behavior.get("content_mode"), behavior.get("length_condition"))
+               behavior.get("content_mode"), behavior.get("length_condition"))
         result = summarize_job(job)
         details.append({"id": job["id"], "group": key, "status": job.get("status"), **result})
         grouped[key].append(result)
@@ -101,7 +101,7 @@ def report_jobs(jobs):
             a, b = g["mean_half_delta_chars"], control["mean_half_delta_chars"]
             contrasts.append({"group": key, "baseline": baseline,
                               "difference_in_half_deltas_chars": a-b if a is not None and b is not None else None})
-    return {"group_fields": ["character", "conversation_mode", "tone", "content_mode", "length_condition"],
+    return {"group_fields": ["character", "conversation_mode", "content_mode", "length_condition"],
             "notes": ["Descriptive statistics, not causal proof or significance tests.",
                       "Group means use complete 20-round dialogues; incomplete runs remain listed.",
                       "Completion tokens are provider-reported, may include reasoning; missing values are null.",

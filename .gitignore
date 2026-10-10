@@ -21,8 +21,8 @@ dist/
 
 # Local dialogue outputs and data-processing intermediates
 /dialogues/
-/dialogues_ds
-/dialogue_qw
+/dialogues_qw
+/dialogues_len_test
 /docs
 /prompts
 /dialogue_dflen

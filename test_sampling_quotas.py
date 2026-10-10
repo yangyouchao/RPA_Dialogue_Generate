@@ -15,7 +15,6 @@ import dialogue_generate as dg
 SETTINGS = {
     "schema_version": "2.0",
     "conversation_mode_distribution": {"task": 0.4, "topic_chat": 0.3, "open_chat": 0.3},
-    "tone_distribution": {"neutral": 0.4, "gentle": 0.2, "sharp": 0.4},
     "length_condition_distribution": dict.fromkeys(dg.LENGTH_CONDITIONS, 0.25),
 }
 
@@ -30,9 +29,9 @@ class QuotaTests(unittest.TestCase):
         override = patch.object(dg, "SAMPLING_CONFIG", self.config)
         override.start()
         self.addCleanup(override.stop)
-        self.presets = [{"id": f"{tone}_{condition}", "tone": tone,
+        self.presets = [{"id": condition,
                          "length_condition": condition, "content_mode": "natural"}
-                        for tone in dg.USER_BEHAVIOR_OPTIONS["tone"] for condition in dg.LENGTH_CONDITIONS]
+                        for condition in dg.LENGTH_CONDITIONS]
         behavior_path = self.root / "all_behaviors.json"
         dg.write_json(behavior_path, {"schema_version": "3.0", "presets": self.presets})
         behavior_override = patch.object(dg, "DEFAULT_USER_BEHAVIORS", behavior_path)
@@ -48,18 +47,17 @@ class QuotaTests(unittest.TestCase):
             dg.main()
             return out.getvalue()
 
-    def test_100_dialogues_have_exact_margins_and_balanced_mode_tone(self):
+    def test_100_dialogues_have_exact_margins_and_balanced_mode_lengths(self):
         jobs, summary = dg.make_quota_jobs(self.catalog(), 100, 42, dg.load_sampling_config(), self.presets)
         self.assertEqual(summary["actual_counts"], {
             "conversation_mode": {"task": 40, "topic_chat": 30, "open_chat": 30},
-            "tone": {"neutral": 40, "gentle": 20, "sharp": 40},
             "length_condition": dict.fromkeys(dg.LENGTH_CONDITIONS, 25)})
         self.assertEqual(summary["target_counts"], summary["actual_counts"])
-        for mode, expected in (("task", {"neutral": 16, "gentle": 8, "sharp": 16}),
-                               ("topic_chat", {"neutral": 12, "gentle": 6, "sharp": 12}),
-                               ("open_chat", {"neutral": 12, "gentle": 6, "sharp": 12})):
+        for mode in dg.CONVERSATION_MODES:
             selected = [job for job in jobs if job["conversation_start"]["mode"] == mode]
-            self.assertEqual(Counter(job["user_behavior"]["tone"] for job in selected), expected)
+            lengths = Counter(job["user_behavior"]["length_condition"] for job in selected)
+            self.assertLessEqual(max(lengths.values()) - min(lengths.values()), 1)
+            self.assertTrue(all("tone" not in job["user_behavior"] for job in selected))
             identities = {(job["character"]["id"], job["user"]["id"],
                            job["topic"]["id"] if job["topic"] else None) for job in selected}
             self.assertEqual(len(identities), len(selected))
@@ -80,9 +78,9 @@ class QuotaTests(unittest.TestCase):
             quotas = dg.sampling_counts(count, SETTINGS)
             for values in quotas.values():
                 self.assertEqual(sum(values.values()), count)
-            table = dg.partition_quotas(quotas["conversation_mode"], quotas["tone"], random.Random(count))
+            table = dg.partition_quotas(quotas["conversation_mode"], quotas["length_condition"], random.Random(count))
             self.assertEqual({key: sum(values.values()) for key, values in table.items()}, quotas["conversation_mode"])
-            for column, number in quotas["tone"].items():
+            for column, number in quotas["length_condition"].items():
                 self.assertEqual(sum(row[column] for row in table.values()), number)
                 self.assertTrue(all(row[column] >= 0 for row in table.values()))
 
@@ -92,24 +90,23 @@ class QuotaTests(unittest.TestCase):
         self.assertEqual(first, dg.make_quota_jobs(catalog, 37, 42, SETTINGS, self.presets))
         self.assertNotEqual(first[0], dg.make_quota_jobs(catalog, 37, 43, SETTINGS, self.presets)[0])
         altered = copy.deepcopy(SETTINGS)
-        altered["tone_distribution"] = {"neutral": 0, "gentle": 0, "sharp": 1}
         altered["length_condition_distribution"] = {x: int(x=="long_long") for x in dg.LENGTH_CONDITIONS}
         second, summary = dg.make_quota_jobs(catalog, 37, 42, altered, self.presets)
         strip_behavior = lambda jobs: [{key: value for key, value in job.items() if key != "user_behavior"} for job in jobs]
         self.assertEqual(strip_behavior(first[0]), strip_behavior(second))
-        self.assertEqual(summary["actual_counts"]["tone"]["sharp"], 37)
-        self.assertEqual({job["user_behavior"]["id"] for job in second}, {"sharp_long_long"})
+        self.assertEqual(summary["actual_counts"]["length_condition"]["long_long"], 37)
+        self.assertEqual({job["user_behavior"]["id"] for job in second}, {"long_long"})
 
     def test_invalid_config_rejected_before_writing_or_model_calls(self):
         invalid = [[], {}, {**SETTINGS, "schema_version": "1.0"}, {**SETTINGS, "unexpected": 1}]
         for value in (-0.1, 1.1, True, "0.4", None, float("nan"), float("inf")):
             document = copy.deepcopy(SETTINGS)
-            document["tone_distribution"]["sharp"] = value
+            document["length_condition_distribution"]["long_long"] = value
             invalid.append(document)
-        for weights in ({}, {"sharp": 1}, {"neutral": 0, "gentle": 0, "sharp": 0},
-                        {"neutral": 0.4, "gentle": 0.2, "sharp": 0.3},
-                        {"neutral": 0.4, "gentle": 0.2, "sharp": 0.4, "typo": 0}):
-            invalid.append({**SETTINGS, "tone_distribution": weights})
+        for weights in ({}, {"long_long": 1}, dict.fromkeys(dg.LENGTH_CONDITIONS, 0),
+                        dict.fromkeys(dg.LENGTH_CONDITIONS, 0.2),
+                        {**dict.fromkeys(dg.LENGTH_CONDITIONS, 0.25), "typo": 0}):
+            invalid.append({**SETTINGS, "length_condition_distribution": weights})
         output = self.root / "invalid_output"
         for index, document in enumerate(invalid):
             with self.subTest(index=index), patch.object(dg.ChatClient, "call", side_effect=AssertionError("No API")):
@@ -149,7 +146,7 @@ class QuotaTests(unittest.TestCase):
     def test_missing_or_duplicate_behavior_combinations_fail_before_writing(self):
         behaviors = self.root / "behaviors.json"
         for presets, message in ((self.presets[:-1], "Missing user behavior"),
-                                 ([*self.presets, {**self.presets[0], "id": "alias"}], "Duplicate tone/length")):
+                                 ([*self.presets, {**self.presets[0], "id": "alias"}], "Duplicate length condition")):
             dg.write_json(behaviors, {"schema_version": "3.0", "presets": presets})
             output = self.root / "bad_presets"
             with self.assertRaisesRegex(ValueError, message):
@@ -160,7 +157,7 @@ class QuotaTests(unittest.TestCase):
         output = self.root / "validation"
         result = self.cli("validate", "--count", "100", "--output", str(output))
         self.assertIn('"target_counts"', result)
-        self.assertIn('"sharp": 40', result)
+        self.assertIn('"long_long": 25', result)
         self.assertFalse(output.exists())
 
     def test_append_applies_new_config_to_new_samples_only(self):
@@ -169,19 +166,19 @@ class QuotaTests(unittest.TestCase):
         before = {path.name: path.read_bytes() for path in output.iterdir()}
         settings = copy.deepcopy(SETTINGS)
         settings["conversation_mode_distribution"] = {"task": 0, "topic_chat": 0, "open_chat": 1}
-        settings["tone_distribution"] = {"neutral": 0, "gentle": 0, "sharp": 1}
+        settings["length_condition_distribution"] = {x: int(x == "long_long") for x in dg.LENGTH_CONDITIONS}
         dg.write_json(self.config, settings)
         self.cli("plan", "--append", "--count", "10", "--output", str(output))
         self.assertEqual(before, {name: (output / name).read_bytes() for name in before})
         for number in range(11, 21):
             job = dg.read_job(output, f"dialogue_{number:05d}")
             self.assertEqual(job["conversation_start"]["mode"], "open_chat")
-            self.assertEqual(job["user_behavior"]["tone"], "sharp")
+            self.assertEqual(job["user_behavior"]["length_condition"], "long_long")
             snapshot = job["sampling_batch"]
             self.assertEqual(snapshot["source_config"], settings)
             self.assertEqual(snapshot["first_job_id"], "dialogue_00011")
             self.assertEqual(snapshot["last_job_id"], "dialogue_00020")
-            self.assertEqual(snapshot["actual_counts"]["tone"]["sharp"], 10)
+            self.assertEqual(snapshot["actual_counts"]["length_condition"]["long_long"], 10)
 
     def test_interrupted_generation_resumes_without_reading_changed_configs(self):
         output = self.root / "resume"
@@ -224,19 +221,19 @@ class QuotaTests(unittest.TestCase):
     def test_legacy_fixed_and_random_overrides_are_explicit_in_snapshot(self):
         output = self.root / "fixed"
         self.cli("plan", "--count", "10", "--conversation-mode", "topic_chat",
-                 "--user-behavior", "sharp_long_long", "--output", str(output))
+                 "--user-behavior", "long_long", "--output", str(output))
         for identifier in dg.job_ids(output):
             job = dg.read_job(output, identifier)
             self.assertEqual(job["conversation_start"]["mode"], "topic_chat")
-            self.assertEqual(job["user_behavior"]["id"], "sharp_long_long")
+            self.assertEqual(job["user_behavior"]["id"], "long_long")
             self.assertEqual(job["sampling_batch"]["overrides"],
-                             {"conversation_mode": "topic_chat", "user_behavior": "sharp_long_long"})
+                             {"conversation_mode": "topic_chat", "user_behavior": "long_long"})
             self.assertEqual(job["sampling_batch"]["source_config"], SETTINGS)
         random_output = self.root / "random"
         self.cli("plan", "--count", "10", "--user-behavior", "random", "--output", str(random_output))
         snapshot = dg.read_job(random_output, "dialogue_00001")["sampling_batch"]
         self.assertEqual(snapshot["behavior_sampling"], "random")
-        self.assertIsNone(snapshot["target_counts"]["tone"])
+        self.assertNotIn("tone", snapshot["target_counts"])
         self.assertIsNone(snapshot["target_counts"]["length_condition"])
         self.assertEqual(snapshot["actual_counts"]["conversation_mode"], {"task": 4, "topic_chat": 3, "open_chat": 3})
 

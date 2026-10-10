@@ -41,7 +41,7 @@ class ExperimentTests(unittest.TestCase):
         catalog = dg.load_catalog(dg.DEFAULT_USERS, dg.DEFAULT_SCHEMES,
                                   dg.ROOT / 'profiles/Character_profile', conversation_mode='open_chat')
         job = dg.make_jobs(catalog, 1, 42, 'open_chat')[0]
-        job['user_behavior'] = {'schema_version': '3.0', 'id': condition, 'tone': 'neutral',
+        job['user_behavior'] = {'schema_version': '3.0', 'id': condition,
                                 'length_condition': condition, 'content_mode': mode}
         return job
 

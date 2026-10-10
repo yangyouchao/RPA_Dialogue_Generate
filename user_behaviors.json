@@ -1,9 +1,9 @@
 {
   "schema_version": "3.0",
   "presets": [
-    {"id": "minimal_minimal", "tone": "neutral", "length_condition": "minimal_minimal", "content_mode": "natural"},
-    {"id": "long_long", "tone": "neutral", "length_condition": "long_long", "content_mode": "natural"},
-    {"id": "minimal_long", "tone": "neutral", "length_condition": "minimal_long", "content_mode": "natural"},
-    {"id": "long_minimal", "tone": "neutral", "length_condition": "long_minimal", "content_mode": "natural"}
+    {"id": "minimal_minimal", "length_condition": "minimal_minimal", "content_mode": "natural"},
+    {"id": "long_long", "length_condition": "long_long", "content_mode": "natural"},
+    {"id": "minimal_long", "length_condition": "minimal_long", "content_mode": "natural"},
+    {"id": "long_minimal", "length_condition": "long_minimal", "content_mode": "natural"}
   ]
 }

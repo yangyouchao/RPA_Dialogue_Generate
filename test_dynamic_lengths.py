@@ -1,18 +1,42 @@
 """Compatibility after replacing autonomous lengths with controlled schedules."""
 import io
 import json
+from pathlib import Path
+import runpy
 import unittest
 from unittest.mock import patch
 import dialogue_generate as dg
 
 
 class LengthContractTests(unittest.TestCase):
+    def test_module_loads_without_reading_external_prompt_files(self):
+        with patch.object(Path, 'read_text', side_effect=AssertionError('No external prompt reads')):
+            module = runpy.run_path(str(dg.ROOT / 'dialogue_generate.py'))
+        self.assertEqual(module['USER_PROMPT'], dg.USER_PROMPT)
+
+    def test_saved_tone_is_not_sent_to_user_model(self):
+        from test_dialogue_generate import fixture
+        for version in ('1.0', '2.0', dg.PROMPT_VERSION):
+            for behavior in ({'tone': 'sharp', 'response_length': 'long'},
+                             {'tone': 'gentle', 'length_condition': 'minimal_long'}):
+                with self.subTest(version=version, behavior=behavior):
+                    job = fixture()
+                    job['prompt_version'] = version
+                    job['user_behavior'] = behavior.copy()
+                    job['scene'] = dg.build_scene(job)
+                    system = dg.actor_system(job, 'user')
+                    data = json.loads(system[len(dg.user_prompt(job)) + 1:])
+                    self.assertNotIn('user_behavior', data)
+                    self.assertNotIn('tone', system)
+                    self.assertEqual(data['current_response_length'], dg.planned_user_length(job, 1))
+                    self.assertEqual(job['user_behavior'], behavior)
+
     def test_natural_response_does_not_require_model_length_label(self):
         dg.validate_user({'message': 'ok', 'goal_completed': False})
         with self.assertRaises(ValueError):
             dg.validate_user({'message': '', 'goal_completed': False})
 
-    def test_old_behavior_uses_fixed_length_and_old_prompt(self):
+    def test_old_behavior_uses_fixed_length_and_builtin_prompt(self):
         job = {'prompt_version': '2.0', 'user_behavior': {'response_length': 'long'}}
         self.assertEqual(dg.planned_user_length(job, 1), 'long')
         self.assertEqual(dg.planned_user_length(job, 11), 'long')
