@@ -1,0 +1,13 @@
+{
+  "timeout_seconds": 90,
+  "retries": 2,
+  "min_interval_seconds": 1,
+  "judge": {
+    "base_url_env": "EVAL_API_BASE",
+    "model_env": "EVAL_MODEL",
+    "api_key_env": "EVAL_API_KEY",
+    "temperature": 0,
+    "max_tokens": 2000,
+    "json_mode": true
+  }
+}

@@ -21,11 +21,13 @@ dist/
 
 # Local dialogue outputs and data-processing intermediates
 /dialogues/
-/dialogues_ds
+/dialogues_len_test
 /dialogues_qw
+/dialogues_test
 /docs
 /dialogue_dflen
 /tmp/
+/evaluations/
 *.progress.log
 .generation.lock
 .checkpoints/

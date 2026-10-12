@@ -1,0 +1,23 @@
+【本次评估维度】
+$dimension_name：$dimension_intro
+
+【本次唯一评分原则】
+$principles
+
+【场景】
+- 场景类型：$scenario_name（$scenario_type）
+- 任务上下文：$task_context
+
+【目标角色】
+$target_role
+
+【角色 profile】
+$role_profile
+
+【当前轮之前的对话历史】
+$history
+
+【待测回复】
+$model_response
+
+现在只输出上述唯一原则的 score 与 reason，严格遵守指定 JSON 结构。

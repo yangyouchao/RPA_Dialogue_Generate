@@ -188,7 +188,18 @@ def save_job(output, job):
         state["pending_message"] = job["messages"][-1]
     log.update(character_name=character_name(job), state=state)
     # Publish complete User/Character pairs; partial turns stay in the checkpoint.
-    write_json(output / f"{job['id']}.json", review_transcript(job))
+    transcript_path = output / f"{job['id']}.json"
+    transcript = review_transcript(job)
+    if transcript_path.exists():
+        previous = read_json(transcript_path)
+        # Rendering or saving unchanged dialogues must retain their appended
+        # evaluation. Changed dialogue context invalidates the old scores.
+        if all(previous.get(key) == transcript.get(key)
+               for key in ("messages", "scene", "conversation_start")):
+            for key in ("scores", "average_score"):
+                if key in previous:
+                    transcript[key] = previous[key]
+    write_json(transcript_path, transcript)
     write_json(path, log)
 
 

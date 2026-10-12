@@ -4,6 +4,8 @@
 
 当前只有 User 和 Character 调用模型；场景在本地构建，不调用导演、逐轮裁判或质量检查模型。生成完成的状态为 `completed`，不代表质量审核通过。
 
+生成后的独立质量评估使用 `evaluate_dialogues.py`，见 [评估说明](EVALUATION.md)。它对已保存的 teachermodel / Character 回复逐轮评分，评估模型单独配置。
+
 ## 环境与安装
 
 ### 固定 User 与 Character
