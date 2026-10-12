@@ -294,6 +294,32 @@ python length_analysis.py --output dialogues/length_natural
 
 Character_t 与 User_t 是同轮关联；Character_t+1 与 User_t 是下一轮关联。两者使用实际公开非空白字符数计算 Pearson r，不使用含 JSON/候选文本的 User API 用量。API completion_tokens 可能包含推理 token，缺失时为 null，报告同时提供 token 覆盖数量。详见 [统计定义及局限](docs/length_experiment.md)。
 
+## 每轮字数和句数折线图
+
+指定对话目录运行独立统计脚本，无需 API、进度日志或原始人物画像：
+
+```powershell
+python round_statistics.py --input dialogues_len_test/dif_len_dialog
+```
+
+默认递归读取目录内的 `dialogue_*.json`，结果保存到输入目录的 `round_statistics/`。
+使用 `--no-recursive` 仅统计目录直接包含的文件；使用 `--output` 指定结果目录：
+
+```powershell
+python round_statistics.py --input dialogues_len_test/minimal_long --output tmp/minimal_long_stats
+```
+
+- `mean_chars_by_round.png`：横轴为轮数，纵轴为平均字数，User 和 Character 两条折线绘制在同一张图中。
+- `mean_sentences_by_round.png`：横轴为轮数，纵轴为平均句数，同样绘制双方折线。
+- `round_summary.csv`：每轮样本数、双方总字数/总句数及平均值。
+- `dialogue_round_details.csv`：每个对话的每轮双方字数和句数。
+- `round_statistics.json`：完整统计结果、输入目录及计数口径。
+
+字数指非空白 Unicode 字符数，包含标点，英文字母逐个计数，与主程序现有字数口径一致，不是词数或 token 数。
+句数按 `。！？.!?` 和省略号切分，连续句末标点只作为一个边界，小数点不切分；包含文字或数字的末尾片段即使没有句末标点也计一句，纯标点片段不计句。逗号、分号和换行不单独分句。此规则不解析英文缩写。
+仅统计完整的 User/Character 发言对，忽略 system 画像和 `.checkpoints` 中的重复文件。提前结束的对话只贡献已有轮次，每轮平均值的分母是该轮实际样本数，不补零；空计划文件会跳过，损坏的对话文件会报错并给出文件名。
+绘图依赖 `matplotlib`，可通过 `python -m pip install -r requirements.txt` 安装。
+
 ## 数据来源与提取
 
 开源画像和主题的来源、版本、抽取方式及许可记录见：

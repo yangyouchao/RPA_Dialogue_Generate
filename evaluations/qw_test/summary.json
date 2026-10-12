@@ -1,0 +1,338 @@
+{
+  "evaluation_version": "teacher_absolute_v1",
+  "fingerprint": "2795f3a655b6511e44e982a89695c8dbfcc7f78787888973d825f1c58bc08edb",
+  "expected_tasks": 260,
+  "completed_tasks": 99,
+  "pending_tasks": 161,
+  "complete": false,
+  "sample_count": 52,
+  "fully_scored_samples": 19,
+  "dialogue_count": 7,
+  "selected_turns_by_mode": {
+    "topic_chat": 24,
+    "open_chat": 12,
+    "task": 16
+  },
+  "skipped": [
+    {
+      "file": "dialogue_00008.json",
+      "reason": "generation_not_completed"
+    },
+    {
+      "file": "dialogue_00009.json",
+      "reason": "generation_not_completed"
+    },
+    {
+      "file": "dialogue_00010.json",
+      "reason": "generation_not_completed"
+    }
+  ],
+  "overall": {
+    "性格特质": {
+      "count": 20,
+      "mean": 4.9,
+      "score_counts": {
+        "1": 0,
+        "3": 1,
+        "5": 19
+      },
+      "dialogue_macro_mean": 4.916666666666667
+    },
+    "情境适应": {
+      "count": 20,
+      "mean": 4.8,
+      "score_counts": {
+        "1": 0,
+        "3": 2,
+        "5": 18
+      },
+      "dialogue_macro_mean": 4.75
+    },
+    "话题承接": {
+      "count": 20,
+      "mean": 4.3,
+      "score_counts": {
+        "1": 0,
+        "3": 7,
+        "5": 13
+      },
+      "dialogue_macro_mean": 4.166666666666667
+    },
+    "话题深度": {
+      "count": 19,
+      "mean": 3.210526315789474,
+      "score_counts": {
+        "1": 0,
+        "3": 17,
+        "5": 2
+      },
+      "dialogue_macro_mean": 3.1666666666666665
+    },
+    "语言风格": {
+      "count": 20,
+      "mean": 4.9,
+      "score_counts": {
+        "1": 0,
+        "3": 1,
+        "5": 19
+      },
+      "dialogue_macro_mean": 4.916666666666667
+    }
+  },
+  "by_mode": {
+    "open_chat": {
+      "性格特质": {
+        "count": 8,
+        "mean": 4.75,
+        "score_counts": {
+          "1": 0,
+          "3": 1,
+          "5": 7
+        },
+        "dialogue_macro_mean": 4.75
+      },
+      "情境适应": {
+        "count": 8,
+        "mean": 4.75,
+        "score_counts": {
+          "1": 0,
+          "3": 1,
+          "5": 7
+        },
+        "dialogue_macro_mean": 4.75
+      },
+      "话题承接": {
+        "count": 8,
+        "mean": 4.5,
+        "score_counts": {
+          "1": 0,
+          "3": 2,
+          "5": 6
+        },
+        "dialogue_macro_mean": 4.5
+      },
+      "话题深度": {
+        "count": 7,
+        "mean": 3.0,
+        "score_counts": {
+          "1": 0,
+          "3": 7,
+          "5": 0
+        },
+        "dialogue_macro_mean": 3.0
+      },
+      "语言风格": {
+        "count": 8,
+        "mean": 4.75,
+        "score_counts": {
+          "1": 0,
+          "3": 1,
+          "5": 7
+        },
+        "dialogue_macro_mean": 4.75
+      }
+    },
+    "task": {
+      "性格特质": {
+        "count": 4,
+        "mean": 5.0,
+        "score_counts": {
+          "1": 0,
+          "3": 0,
+          "5": 4
+        },
+        "dialogue_macro_mean": 5.0
+      },
+      "情境适应": {
+        "count": 4,
+        "mean": 4.5,
+        "score_counts": {
+          "1": 0,
+          "3": 1,
+          "5": 3
+        },
+        "dialogue_macro_mean": 4.5
+      },
+      "话题承接": {
+        "count": 4,
+        "mean": 3.5,
+        "score_counts": {
+          "1": 0,
+          "3": 3,
+          "5": 1
+        },
+        "dialogue_macro_mean": 3.5
+      },
+      "话题深度": {
+        "count": 4,
+        "mean": 3.0,
+        "score_counts": {
+          "1": 0,
+          "3": 4,
+          "5": 0
+        },
+        "dialogue_macro_mean": 3.0
+      },
+      "语言风格": {
+        "count": 4,
+        "mean": 5.0,
+        "score_counts": {
+          "1": 0,
+          "3": 0,
+          "5": 4
+        },
+        "dialogue_macro_mean": 5.0
+      }
+    },
+    "topic_chat": {
+      "性格特质": {
+        "count": 8,
+        "mean": 5.0,
+        "score_counts": {
+          "1": 0,
+          "3": 0,
+          "5": 8
+        },
+        "dialogue_macro_mean": 5.0
+      },
+      "情境适应": {
+        "count": 8,
+        "mean": 5.0,
+        "score_counts": {
+          "1": 0,
+          "3": 0,
+          "5": 8
+        },
+        "dialogue_macro_mean": 5.0
+      },
+      "话题承接": {
+        "count": 8,
+        "mean": 4.5,
+        "score_counts": {
+          "1": 0,
+          "3": 2,
+          "5": 6
+        },
+        "dialogue_macro_mean": 4.5
+      },
+      "话题深度": {
+        "count": 8,
+        "mean": 3.5,
+        "score_counts": {
+          "1": 0,
+          "3": 6,
+          "5": 2
+        },
+        "dialogue_macro_mean": 3.5
+      },
+      "语言风格": {
+        "count": 8,
+        "mean": 5.0,
+        "score_counts": {
+          "1": 0,
+          "3": 0,
+          "5": 8
+        },
+        "dialogue_macro_mean": 5.0
+      }
+    }
+  },
+  "by_character": {
+    "孟子义（Meng Ziyi）；公开常用称呼：孟姐": {
+      "性格特质": {
+        "count": 20,
+        "mean": 4.9,
+        "score_counts": {
+          "1": 0,
+          "3": 1,
+          "5": 19
+        },
+        "dialogue_macro_mean": 4.916666666666667
+      },
+      "情境适应": {
+        "count": 20,
+        "mean": 4.8,
+        "score_counts": {
+          "1": 0,
+          "3": 2,
+          "5": 18
+        },
+        "dialogue_macro_mean": 4.75
+      },
+      "话题承接": {
+        "count": 20,
+        "mean": 4.3,
+        "score_counts": {
+          "1": 0,
+          "3": 7,
+          "5": 13
+        },
+        "dialogue_macro_mean": 4.166666666666667
+      },
+      "话题深度": {
+        "count": 19,
+        "mean": 3.210526315789474,
+        "score_counts": {
+          "1": 0,
+          "3": 17,
+          "5": 2
+        },
+        "dialogue_macro_mean": 3.1666666666666665
+      },
+      "语言风格": {
+        "count": 20,
+        "mean": 4.9,
+        "score_counts": {
+          "1": 0,
+          "3": 1,
+          "5": 19
+        },
+        "dialogue_macro_mean": 4.916666666666667
+      }
+    }
+  },
+  "by_dialogue": {
+    "dialogue_00001": {
+      "average_score": 4.6,
+      "completed_tasks": 40,
+      "expected_tasks": 40,
+      "complete": true
+    },
+    "dialogue_00002": {
+      "average_score": 4.3846,
+      "completed_tasks": 39,
+      "expected_tasks": 40,
+      "complete": false
+    },
+    "dialogue_00003": {
+      "average_score": 4.2,
+      "completed_tasks": 20,
+      "expected_tasks": 40,
+      "complete": false
+    },
+    "dialogue_00004": {
+      "average_score": null,
+      "completed_tasks": 0,
+      "expected_tasks": 40,
+      "complete": false
+    },
+    "dialogue_00005": {
+      "average_score": null,
+      "completed_tasks": 0,
+      "expected_tasks": 20,
+      "complete": false
+    },
+    "dialogue_00006": {
+      "average_score": null,
+      "completed_tasks": 0,
+      "expected_tasks": 40,
+      "complete": false
+    },
+    "dialogue_00007": {
+      "average_score": null,
+      "completed_tasks": 0,
+      "expected_tasks": 40,
+      "complete": false
+    }
+  }
+}

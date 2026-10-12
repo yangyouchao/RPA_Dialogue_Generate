@@ -1,0 +1,68 @@
+{
+  "evaluation_version": "teacher_absolute_v1",
+  "fingerprint": "2795f3a655b6511e44e982a89695c8dbfcc7f78787888973d825f1c58bc08edb",
+  "input": "C:\\Users\\huluye\\Desktop\\dialogue_generate\\dialogues_qw\\genlong_newprompt",
+  "judge_model": "qwen3.8-max",
+  "judge_base": "https://llm-nqjzttc7oc2es2w5.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+  "config": {
+    "timeout_seconds": 90,
+    "retries": 2,
+    "min_interval_seconds": 1,
+    "judge": {
+      "base_url_env": "EVAL_API_BASE",
+      "model_env": "EVAL_MODEL",
+      "api_key_env": "EVAL_API_KEY",
+      "temperature": 0,
+      "max_tokens": 2000,
+      "json_mode": true
+    }
+  },
+  "prompts": {
+    "system": "你是严谨的大模型角色扮演评估专家。本次调用只评估一个小维度（一个原则），给出该原则的 1、3、5 分及简洁、可核查的中文原因。\n\n必须遵守：\n1. 只依据给定评估原则评分，不自行增加指标，不输出总分、平均分、优缺点总结或改写建议。\n2. 只评价当前给出的这一个原则；原因必须结合待测回复和上下文中的具体内容。\n3. 只对 teachermodel 生成的待测回复独立评分，依据角色 profile、当前轮之前的对话历史及本次评分原则判断。\n4. 角色在现代应用场景中谈及或理解现代世界信息是合理且必要的，绝不能仅因角色原作时代与现代不同而扣分。\n5. 严格输出一个 JSON 对象。键必须且只能是本次给出的原则名；其值必须且只能包含整数 score 和字符串 reason，不要输出任何其他字段或 Markdown。",
+    "user": "【本次评估维度】\n$dimension_name：$dimension_intro\n\n【本次唯一评分原则】\n$principles\n\n【场景】\n- 场景类型：$scenario_name（$scenario_type）\n- 任务上下文：$task_context\n\n【目标角色】\n$target_role\n\n【角色 profile】\n$role_profile\n\n【当前轮之前的对话历史】\n$history\n\n【待测回复】\n$model_response\n\n现在只输出上述唯一原则的 score 与 reason，严格遵守指定 JSON 结构。"
+  },
+  "criteria": [
+    {
+      "dimension_id": "role_consistency",
+      "dimension_name": "角色一致性",
+      "intro": "判断待测回复是否忠实扮演目标角色，并适应当前情境。",
+      "principles": {
+        "性格特质": "模型的输出是否符合角色的核心人格特质。1=与角色核心人格特质明显冲突；3=基本符合，但角色特质体现笼统、薄弱或不稳定；5=自然、具体且稳定地体现角色核心人格特质。"
+      }
+    },
+    {
+      "dimension_id": "role_consistency",
+      "dimension_name": "角色一致性",
+      "intro": "判断待测回复是否忠实扮演目标角色，并适应当前情境。",
+      "principles": {
+        "语言风格": "模型的输出是否符合角色的语言风格。1=明显不符合角色语言风格；3=基本符合，但表达较通用或机械堆砌标志性话语；5=自然、稳定地体现角色语言风格，且表达贴合本轮内容。"
+      }
+    },
+    {
+      "dimension_id": "role_consistency",
+      "dimension_name": "角色一致性",
+      "intro": "判断待测回复是否忠实扮演目标角色，并适应当前情境。",
+      "principles": {
+        "情境适应": "模型的输出是否符合当前的情境。1=明显误解或违背上下文情境；3=基本符合，但对情境中的重要细节回应不足；5=准确理解当前情境，以符合角色的方式自然回应其中的重要细节。"
+      }
+    },
+    {
+      "dimension_id": "open_domain_ability",
+      "dimension_name": "开放域对话任务能力",
+      "intro": "忽略角色化表达本身，只评价开放域对话能力与话题深度。",
+      "principles": {
+        "话题承接": "是否承接并推进话题。1=完全无法承接上文；3=能承接并回应；5=承接基础上给出有趣或有信息量的新角度，能吸引继续交流。"
+      }
+    },
+    {
+      "dimension_id": "open_domain_ability",
+      "dimension_name": "开放域对话任务能力",
+      "intro": "忽略角色化表达本身，只评价开放域对话能力与话题深度。",
+      "principles": {
+        "话题深度": "完全剥离角色风格、比喻等表达手段，只评价话语内核对话题的理解与信息密度。1=理解肤浅或偏离话题，缺少有效信息；3=理解基本准确，提供与当前话题相关的有效信息；5=展现深入理解，提供具体、有信息量且有启发性的分析或见解。"
+      }
+    }
+  ],
+  "sample_count": 52,
+  "expected_tasks": 260
+}
