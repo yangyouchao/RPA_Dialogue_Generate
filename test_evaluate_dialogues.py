@@ -134,17 +134,17 @@ class EvaluationTests(unittest.TestCase):
         FakeClient.fail_once = True
         self.assertEqual(self.run_eval(), 1)
         summary = dg.read_json(self.root / "eval/summary.json")
-        self.assertEqual(summary["completed_tasks"], 9)
+        self.assertEqual(summary["completed_tasks"], 13)
         self.assertFalse(summary["complete"])
         self.assertEqual(summary["fully_scored_samples"], 1)
         self.assertEqual(self.run_eval("--resume"), 0)
-        self.assertEqual(len(FakeClient.calls), 11)
+        self.assertEqual(len(FakeClient.calls), 15)
         self.assertEqual(self.run_eval("--resume"), 0)
-        self.assertEqual(len(FakeClient.calls), 11)
+        self.assertEqual(len(FakeClient.calls), 15)
         summary = dg.read_json(self.root / "eval/summary.json")
         self.assertTrue(summary["complete"])
         self.assertEqual(summary["fully_scored_samples"], 2)
-        self.assertEqual(summary["by_mode"]["task"]["性格特质"]["mean"], 3)
+        self.assertEqual(summary["by_mode"]["task"]["特质一致"]["mean"], 3)
         data = dg.read_json(self.path)
         self.assertEqual(list(data)[-1], "average_score")
         self.assertEqual(data.pop("average_score"), 3)
@@ -152,7 +152,7 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(data, original)
         self.assertEqual(len(scores), 2)
         for items in scores.values():
-            self.assertEqual(len(items), 5)
+            self.assertEqual(len(items), 7)
             for item in items:
                 self.assertEqual(set(item), {"dimension", "score", "reason"})
         self.assertFalse((self.root / "eval/scores.json").exists())
@@ -176,10 +176,10 @@ class EvaluationTests(unittest.TestCase):
                 self.run_eval("--resume")
 
     def test_dialogue_macro_average(self):
-        rows = [{"principle": "话题承接", "dialogue_id": "a", "score": 1},
-                {"principle": "话题承接", "dialogue_id": "a", "score": 1},
-                {"principle": "话题承接", "dialogue_id": "b", "score": 5}]
-        result = ev.aggregate(rows)["话题承接"]
+        rows = [{"principle": "话题推动", "dialogue_id": "a", "score": 1},
+                {"principle": "话题推动", "dialogue_id": "a", "score": 1},
+                {"principle": "话题推动", "dialogue_id": "b", "score": 5}]
+        result = ev.aggregate(rows)["话题推动"]
         self.assertAlmostEqual(result["mean"], 7 / 3)
         self.assertEqual(result["dialogue_macro_mean"], 3)
 
@@ -209,9 +209,9 @@ class EvaluationTests(unittest.TestCase):
                 patch.object(ev.dg.urllib.request, "urlopen", side_effect=urlopen), \
                 patch.object(ev.dg.time, "sleep"), patch("sys.stdout", io.StringIO()):
             self.assertEqual(ev.run(self.args("--limit", "1", "--config", str(config_path))), 0)
-        self.assertEqual(len(requests), 6)
+        self.assertEqual(len(requests), 8)
         scores = dg.read_json(self.path)["scores"]["round_01"]
-        self.assertEqual(len(scores), 5)
+        self.assertEqual(len(scores), 7)
         self.assertEqual(scores[0]["score"], 5)
         self.assertEqual(dg.read_json(self.path)["average_score"], 5)
         self.assertEqual(set(scores[0]), {"dimension", "score", "reason"})
@@ -251,8 +251,8 @@ class EvaluationTests(unittest.TestCase):
         env.assert_not_called()
         self.assertFalse(target.exists())
         self.assertEqual((self.root / "eval/scores.legacy.json").read_bytes(), original)
-        self.assertEqual(len(dg.read_json(self.path)["scores"]["round_01"]), 5)
-        self.assertEqual(len(dg.read_json(self.path)["scores"]["round_02"]), 5)
+        self.assertEqual(len(dg.read_json(self.path)["scores"]["round_01"]), 7)
+        self.assertEqual(len(dg.read_json(self.path)["scores"]["round_02"]), 7)
         FakeClient.calls = []
         self.assertEqual(self.run_eval("--resume"), 0)
         self.assertEqual(FakeClient.calls, [])
@@ -278,7 +278,7 @@ class EvaluationTests(unittest.TestCase):
                "status": "completed"}
         dg.save_job(self.source, job)
         data = dg.read_json(self.path)
-        data["scores"] = {"round_01": [{"dimension": "性格特质", "score": 3, "reason": "理由"}]}
+        data["scores"] = {"round_01": [{"dimension": "特质一致", "score": 3, "reason": "理由"}]}
         data["average_score"] = 3
         dg.write_json(self.path, data)
         dg.save_job(self.source, job)
@@ -296,10 +296,18 @@ class EvaluationTests(unittest.TestCase):
         ev.save_score(samples[1], ev.dimensions()[1], {"score": 5, "reason": "高分"})
         self.assertEqual(dg.read_json(self.path)["average_score"], 3.6667)
         rows = ev.read_saved_scores(samples, ev.dimensions())
-        summary = ev.summarize(samples, rows, 10, [], "test")
+        summary = ev.summarize(samples, rows, 14, [], "test")
         result = summary["by_dialogue"]["dialogue_00001"]
         self.assertEqual(result, {"average_score": 3.6667, "completed_tasks": 3,
-                                  "expected_tasks": 10, "complete": False})
+                                  "expected_tasks": 14, "complete": False})
+
+    def test_previous_dimensions_cannot_be_reused(self):
+        data = transcript()
+        data["scores"] = {"round_01": [{"dimension": "性格特质", "score": 3, "reason": "旧量表评分"}]}
+        dg.write_json(self.path, data)
+        samples, _ = ev.load_samples(self.source)
+        with self.assertRaisesRegex(ValueError, "Unknown/duplicate"):
+            ev.read_saved_scores(samples, ev.dimensions())
 
     def test_offline_average_backfill_includes_unscored_dialogues(self):
         dg.write_json(self.source / "dialogue_00002.json", transcript("open_chat"))

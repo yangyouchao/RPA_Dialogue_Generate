@@ -16,7 +16,7 @@ from evaluation_rubrics import dimensions
 
 ROOT = Path(__file__).resolve().parent
 PROMPT_ROOT = ROOT / "prompts/evaluation"
-EVALUATION_VERSION = "teacher_absolute_v1"
+EVALUATION_VERSION = "teacher_section_4_4_v2"
 MODE_NAMES = {"task": "具体场景交流", "topic_chat": "围绕话题闲聊", "open_chat": "无预设话题闲聊"}
 
 
@@ -408,13 +408,13 @@ def run(args):
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="按五个原则独立评价现有 teachermodel 回复（1/3/5 分）。")
+    parser = argparse.ArgumentParser(description="按第 4.4 节七个维度独立评价现有 teachermodel 回复（1/3/5 分）。")
     parser.add_argument("--input", required=True, help="原生 dialogue_*.json 所在批次目录，或单个原生 JSON 文件")
     parser.add_argument("--output", default=str(ROOT / "evaluations/default"), help="运行配置、汇总和失败日志目录；评分写入原对话")
     parser.add_argument("--config", default=str(ROOT / "evaluation_config.json"))
     parser.add_argument("--env-file", default=str(ROOT / ".env"))
     parser.add_argument("--mode", action="append", choices=tuple(MODE_NAMES), help="可重复指定，只评估所选模式")
-    parser.add_argument("--limit", type=int, help="最多评估多少条 Character 回复（每条 5 次评分请求）")
+    parser.add_argument("--limit", type=int, help=f"最多评估多少条 Character 回复（每条 {len(dimensions())} 次评分请求）")
     parser.add_argument("--check", action="store_true", help="离线校验，不读取 API 环境变量、不调用模型、不写文件")
     parser.add_argument("--preview", action="store_true", help="显示首个评分 prompt；与 --check 配合仅预览")
     parser.add_argument("--resume", action="store_true")
