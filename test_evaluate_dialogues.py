@@ -123,6 +123,7 @@ class EvaluationTests(unittest.TestCase):
 
     def test_check_no_network_env_or_writes(self):
         with patch.object(ev.dg, "ChatClient") as client, patch.object(ev.dg, "load_api_env") as env, \
+                patch.object(Path, "is_relative_to", side_effect=AttributeError("unavailable on older Python"), create=True), \
                 patch("sys.stdout", io.StringIO()):
             self.assertEqual(ev.run(self.args("--check")), 0)
         client.assert_not_called()

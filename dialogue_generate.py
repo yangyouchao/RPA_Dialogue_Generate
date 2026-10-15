@@ -27,7 +27,7 @@ DEFAULT_SCHEMES = ROOT / "schema/open_source"
 DEFAULT_USER_BEHAVIORS = ROOT / "user_behaviors.json"
 SAMPLING_CONFIG = ROOT / "sampling_config.json"
 PROMPT_VERSION = "3.0"
-MAX_ROUNDS = 8
+MAX_ROUNDS = 20
 CONVERSATION_MODES = ("task", "topic_chat", "open_chat")
 USER_BEHAVIOR_OPTIONS = {
     "tone": ("neutral", "gentle", "sharp"),

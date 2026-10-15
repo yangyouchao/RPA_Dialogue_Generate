@@ -320,7 +320,7 @@ def run(args):
     dg.require(args.limit is None or args.limit > 0, "--limit must be positive")
     source, output = Path(args.input).resolve(), Path(args.output).resolve()
     source_dir = source if source.is_dir() else source.parent
-    dg.require(output != source_dir and not source_dir.is_relative_to(output),
+    dg.require(output != source_dir and output not in source_dir.parents,
                "Evaluation output must not be the input directory or its ancestor")
     samples, skipped = load_samples(source, args.mode, args.limit)
     config = dg.read_json(args.config)
